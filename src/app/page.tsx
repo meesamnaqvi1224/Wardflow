@@ -1,65 +1,133 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useSession } from "@/lib/session";
+import { assignedPatients, bySeverity, wardSummary } from "@/lib/domain";
+import { StatCard } from "@/components/StatCard";
+import { PatientCard } from "@/components/patient/PatientCard";
+import { PatientTable } from "@/components/patient/PatientTable";
+import { Timeline } from "@/components/Timeline";
+import { Badge } from "@/components/Badge";
+
+export default function DashboardPage() {
+  const { staff, data } = useSession();
+
+  const summary = wardSummary(data);
+  const attention = bySeverity(data.patients.filter((p) => p.status !== "stable"));
+  const assigned = bySeverity(assignedPatients(data.patients, staff));
+  const allPatients = bySeverity(data.patients);
+  const patientName = (id: string) => data.patients.find((p) => p.id === id)?.name;
+
+  // Doctors are seeded as "Dr. First Last"; greet by the given name.
+  const firstName = staff.name.split(" ")[staff.role === "doctor" ? 1 : 0];
+
+  // The "due now" work list combines open care tasks and medications due.
+  const dueWork = [
+    ...data.tasks
+      .filter((t) => t.status === "open")
+      .slice(0, 4)
+      .map((t) => ({
+        id: t.id,
+        title: t.title,
+        patientId: t.patientId,
+        meta: `${t.due} · Task`,
+        tone: t.priority === "important" ? ("warning" as const) : (t.priority as "urgent" | "routine"),
+      })),
+    ...data.medications
+      .filter((m) => m.status === "due")
+      .map((m) => ({
+        id: m.id,
+        title: `${m.name} · ${m.dose}`,
+        patientId: m.patientId,
+        meta: `${m.due} · Medication`,
+        tone: "warning" as const,
+      })),
+  ];
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <>
+      <div className="page-head">
+        <div>
+          <p className="eyebrow">Medical Ward A · Day Shift</p>
+          <h1>Good morning, {firstName}</h1>
+          <p className="muted">Here is what needs attention across the ward.</p>
+        </div>
+      </div>
+
+      <div className="stats">
+        <StatCard label="Ward patients" value={summary.patients} note="Currently admitted" />
+        <StatCard
+          label="Active alerts"
+          value={summary.activeAlerts}
+          note={`${summary.urgentAlerts} urgent`}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+        <StatCard
+          label="Open tasks"
+          value={summary.openTasks}
+          note={`${summary.urgentTasks} urgent`}
+        />
+        <StatCard label="Medications due" value={summary.medicationsDue} note="Next 60 minutes" />
+      </div>
+
+      <section className="section">
+        <div className="section-head">
+          <h2>Needs attention</h2>
+          <span className="muted">{attention.length} patients</span>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <div className="attention-grid">
+          {attention.map((p) => (
+            <PatientCard key={p.id} patient={p} />
+          ))}
         </div>
-      </main>
-    </div>
+      </section>
+
+      <section className="section">
+        <div className="section-head">
+          <h2>My assigned patients</h2>
+          <span className="muted">
+            {assigned.length} assigned to {staff.role === "admin" ? "ward" : "you"}
+          </span>
+        </div>
+        <PatientTable patients={assigned} alerts={data.alerts} tasks={data.tasks} />
+      </section>
+
+      <section className="section two-col">
+        <div>
+          <div className="section-head">
+            <h2>Tasks and medications due</h2>
+          </div>
+          <div className="panel panel-pad">
+            {dueWork.map((row) => (
+              <div className="task-row" key={row.id}>
+                <div className="row-top">
+                  <div>
+                    <strong>{row.title}</strong>
+                    <div className="muted">
+                      {patientName(row.patientId)} · {row.meta}
+                    </div>
+                  </div>
+                  <Badge tone={row.tone === "routine" ? "neutral" : row.tone} label={row.tone} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="section-head">
+            <h2>Recent ward activity</h2>
+          </div>
+          <div className="panel panel-pad">
+            <Timeline events={data.timeline.slice(0, 6)} patients={data.patients} />
+          </div>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="section-head">
+          <h2>All ward patients</h2>
+          <span className="muted">Searchable from the top bar</span>
+        </div>
+        <PatientTable patients={allPatients} alerts={data.alerts} tasks={data.tasks} />
+      </section>
+    </>
   );
 }
