@@ -99,3 +99,121 @@ export function wardSummary(data: WardData) {
     medicationsDue: data.medications.filter((m) => m.status === "due").length,
   };
 }
+
+function newId(prefix: string): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `${prefix}_${crypto.randomUUID()}`;
+  }
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+/** Derive patient acuity from non-resolved alerts (urgent wins). */
+export function patientStatusFromAlerts(
+  alerts: Alert[],
+  patientId: string,
+): PatientStatus {
+  const open = alerts.filter((a) => a.patientId === patientId && a.status !== "resolved");
+  if (open.some((a) => a.severity === "urgent")) return "urgent";
+  if (open.length) return "warning";
+  return "stable";
+}
+
+export interface RecordVitalsInput {
+  patientId: string;
+  vitals: Vitals;
+  staffName: string;
+  note?: string;
+}
+
+/**
+ * Pure reducer: record vitals, create alerts for abnormalities, append timeline.
+ * Same rules the Supabase server action / trigger will enforce in Phase 5.
+ */
+export function applyRecordVitals(data: WardData, input: RecordVitalsInput): WardData {
+  const { patientId, vitals, staffName, note } = input;
+  const patient = data.patients.find((p) => p.id === patientId);
+  if (!patient) return data;
+
+  const abnormalities = evaluateVitals(vitals);
+  const severity = overallSeverity(abnormalities);
+  let alerts = data.alerts;
+  let timeline = data.timeline;
+
+  if (severity && abnormalities.length) {
+    const message = abnormalities.map((a) => a.message).join("; ");
+    alerts = [
+      {
+        id: newId("a"),
+        patientId,
+        severity,
+        message,
+        status: "active",
+        at: "Just now",
+      },
+      ...alerts,
+    ];
+    timeline = [
+      {
+        id: newId("e"),
+        patientId,
+        summary: `${severity === "urgent" ? "Urgent" : "Warning"} vital alert automatically created`,
+        at: "Just now",
+        type: severity,
+      },
+      ...timeline,
+    ];
+  }
+
+  timeline = [
+    {
+      id: newId("e"),
+      patientId,
+      summary: `${staffName} recorded new vitals${note ? `: ${note}` : ""}`,
+      at: "Just now",
+      type: "vitals",
+    },
+    ...timeline,
+  ];
+
+  const patients = data.patients.map((p) => {
+    if (p.id !== patientId) return p;
+    const nextStatus = patientStatusFromAlerts(alerts, patientId);
+    return {
+      ...p,
+      vitals,
+      updated: "Just now",
+      status: nextStatus,
+    };
+  });
+
+  return { ...data, patients, alerts, timeline };
+}
+
+export function applyAlertStatus(
+  data: WardData,
+  alertId: string,
+  status: "acknowledged" | "resolved",
+  staffName: string,
+): WardData {
+  const existing = data.alerts.find((a) => a.id === alertId);
+  if (!existing) return data;
+
+  const alerts = data.alerts.map((a) => (a.id === alertId ? { ...a, status } : a));
+  const timeline = [
+    {
+      id: newId("e"),
+      patientId: existing.patientId,
+      summary: `${staffName} ${status} alert: ${existing.message}`,
+      at: "Just now",
+      type: "alert" as const,
+    },
+    ...data.timeline,
+  ];
+  const patients = data.patients.map((p) =>
+    p.id === existing.patientId
+      ? { ...p, status: patientStatusFromAlerts(alerts, p.id), updated: "Just now" }
+      : p,
+  );
+
+  return { ...data, alerts, timeline, patients };
+}

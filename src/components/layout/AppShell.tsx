@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "@/lib/session";
+import { Toast } from "@/components/Toast";
 import { DemoBanner } from "./DemoBanner";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
@@ -12,6 +14,7 @@ import { Topbar } from "./Topbar";
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const { toast, clearToast } = useSession();
 
   return (
     <>
@@ -23,6 +26,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="content">{children}</div>
         </main>
       </div>
+      {toast ? <Toast message={toast} onDismiss={clearToast} /> : null}
     </>
   );
 }

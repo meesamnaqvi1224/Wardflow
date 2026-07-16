@@ -9,7 +9,7 @@ import { RoleSwitcher } from "@/components/RoleSwitcher";
  * patient filtering when the module pages arrive.
  */
 export function Topbar({ onMenu }: { onMenu: () => void }) {
-  const { staff } = useSession();
+  const { staff, resetDemo } = useSession();
 
   return (
     <header className="topbar">
@@ -23,6 +23,9 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
         aria-label="Search patients"
       />
       <div className="top-spacer" />
+      <button type="button" className="btn" onClick={resetDemo} title="Restore seed demo data">
+        Reset demo
+      </button>
       <RoleSwitcher />
       <div className="avatar" aria-hidden="true">
         {staff.initials}

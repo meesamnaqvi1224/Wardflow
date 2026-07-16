@@ -1,36 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# WardFlow v2
 
-## Getting Started
+Hospital ward portal demo (Next.js + TypeScript). Fictional patient data only.
 
-First, run the development server:
+The v1 static prototype lives one folder up and remains deployable on its own.
+
+## Run locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## What works today (no database required)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Switch role (Nurse / Doctor / Admin) in the top bar.
+2. Open **Maya Patel** (or any patient).
+3. **Record vitals** — abnormal values create alerts automatically.
+4. Open **Alerts**, acknowledge / resolve as a doctor or nurse.
+5. **Reset demo** restores the seed scenario.
 
-## Learn More
+Data is held in browser session state until Supabase is connected.
 
-To learn more about Next.js, take a look at the following resources:
+## Phase 3: Supabase (optional next)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Create a free project at [supabase.com](https://supabase.com).
+2. In the SQL editor, run:
+   - `supabase/schema.sql`
+   - `supabase/seed.sql`
+3. Copy `.env.example` → `.env.local` and set:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```text
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+```
 
-## Deploy on Vercel
+Client stubs live in `src/lib/supabase/`. Wiring live queries is the next coding step after env vars exist.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Demo accounts (planned for Phase 4 auth)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `doctor@wardflow.demo`
+- `nurse@wardflow.demo`
+- `admin@wardflow.demo`
+
+## Important
+
+This is a demonstration MVP, not production clinical software. Do not enter real patient data.
