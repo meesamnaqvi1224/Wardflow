@@ -6,6 +6,7 @@ import type {
   Role,
   StaffMember,
   Task,
+  TimelineEvent,
   Vitals,
   WardData,
 } from "./types";
@@ -125,68 +126,89 @@ export interface RecordVitalsInput {
   note?: string;
 }
 
+export interface RecordVitalsResult {
+  data: WardData;
+  abnormalCount: number;
+  /** Patient after the update (for DB write). */
+  patient: Patient;
+  newAlert: Alert | null;
+  newTimeline: TimelineEvent[];
+}
+
+export interface AlertStatusResult {
+  data: WardData;
+  alert: Alert;
+  newTimeline: TimelineEvent;
+  patientId: string;
+  patientStatus: PatientStatus;
+}
+
 /**
  * Pure reducer: record vitals, create alerts for abnormalities, append timeline.
- * Same rules the Supabase server action / trigger will enforce in Phase 5.
+ * Returns mutation metadata so the Supabase layer can persist the same IDs.
  */
-export function applyRecordVitals(data: WardData, input: RecordVitalsInput): WardData {
+export function applyRecordVitals(
+  data: WardData,
+  input: RecordVitalsInput,
+): RecordVitalsResult | null {
   const { patientId, vitals, staffName, note } = input;
-  const patient = data.patients.find((p) => p.id === patientId);
-  if (!patient) return data;
+  const existing = data.patients.find((p) => p.id === patientId);
+  if (!existing) return null;
 
   const abnormalities = evaluateVitals(vitals);
   const severity = overallSeverity(abnormalities);
   let alerts = data.alerts;
   let timeline = data.timeline;
+  let newAlert: Alert | null = null;
+  const newTimeline: TimelineEvent[] = [];
 
   if (severity && abnormalities.length) {
     const message = abnormalities.map((a) => a.message).join("; ");
-    alerts = [
-      {
-        id: newId("a"),
-        patientId,
-        severity,
-        message,
-        status: "active",
-        at: "Just now",
-      },
-      ...alerts,
-    ];
-    timeline = [
-      {
-        id: newId("e"),
-        patientId,
-        summary: `${severity === "urgent" ? "Urgent" : "Warning"} vital alert automatically created`,
-        at: "Just now",
-        type: severity,
-      },
-      ...timeline,
-    ];
-  }
-
-  timeline = [
-    {
+    newAlert = {
+      id: newId("a"),
+      patientId,
+      severity,
+      message,
+      status: "active",
+      at: "Just now",
+    };
+    alerts = [newAlert, ...alerts];
+    const alertEvent: TimelineEvent = {
       id: newId("e"),
       patientId,
-      summary: `${staffName} recorded new vitals${note ? `: ${note}` : ""}`,
+      summary: `${severity === "urgent" ? "Urgent" : "Warning"} vital alert automatically created`,
       at: "Just now",
-      type: "vitals",
-    },
-    ...timeline,
-  ];
-
-  const patients = data.patients.map((p) => {
-    if (p.id !== patientId) return p;
-    const nextStatus = patientStatusFromAlerts(alerts, patientId);
-    return {
-      ...p,
-      vitals,
-      updated: "Just now",
-      status: nextStatus,
+      type: severity,
     };
-  });
+    newTimeline.push(alertEvent);
+    timeline = [alertEvent, ...timeline];
+  }
 
-  return { ...data, patients, alerts, timeline };
+  const vitalsEvent: TimelineEvent = {
+    id: newId("e"),
+    patientId,
+    summary: `${staffName} recorded new vitals${note ? `: ${note}` : ""}`,
+    at: "Just now",
+    type: "vitals",
+  };
+  newTimeline.unshift(vitalsEvent);
+  timeline = [vitalsEvent, ...timeline];
+
+  const patient: Patient = {
+    ...existing,
+    vitals,
+    updated: "Just now",
+    status: patientStatusFromAlerts(alerts, patientId),
+  };
+  const patients = data.patients.map((p) => (p.id === patientId ? patient : p));
+
+  return {
+    data: { ...data, patients, alerts, timeline },
+    abnormalCount: abnormalities.length,
+    patient,
+    newAlert,
+    newTimeline,
+  };
 }
 
 export function applyAlertStatus(
@@ -194,26 +216,32 @@ export function applyAlertStatus(
   alertId: string,
   status: "acknowledged" | "resolved",
   staffName: string,
-): WardData {
+): AlertStatusResult | null {
   const existing = data.alerts.find((a) => a.id === alertId);
-  if (!existing) return data;
+  if (!existing) return null;
 
-  const alerts = data.alerts.map((a) => (a.id === alertId ? { ...a, status } : a));
-  const timeline = [
-    {
-      id: newId("e"),
-      patientId: existing.patientId,
-      summary: `${staffName} ${status} alert: ${existing.message}`,
-      at: "Just now",
-      type: "alert" as const,
-    },
-    ...data.timeline,
-  ];
+  const alert: Alert = { ...existing, status, at: existing.at };
+  const alerts = data.alerts.map((a) => (a.id === alertId ? alert : a));
+  const newTimeline: TimelineEvent = {
+    id: newId("e"),
+    patientId: existing.patientId,
+    summary: `${staffName} ${status} alert: ${existing.message}`,
+    at: "Just now",
+    type: "alert",
+  };
+  const timeline = [newTimeline, ...data.timeline];
+  const patientStatus = patientStatusFromAlerts(alerts, existing.patientId);
   const patients = data.patients.map((p) =>
     p.id === existing.patientId
-      ? { ...p, status: patientStatusFromAlerts(alerts, p.id), updated: "Just now" }
+      ? { ...p, status: patientStatus, updated: "Just now" }
       : p,
   );
 
-  return { ...data, alerts, timeline, patients };
+  return {
+    data: { ...data, alerts, timeline, patients },
+    alert,
+    newTimeline,
+    patientId: existing.patientId,
+    patientStatus,
+  };
 }

@@ -14,7 +14,8 @@ import { Topbar } from "./Topbar";
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const { toast, clearToast } = useSession();
+  const { toast, clearToast, loadState, loadError, dataSource, reload, refreshing } =
+    useSession();
 
   return (
     <>
@@ -23,7 +24,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Sidebar open={mobileNavOpen} onNavigate={() => setMobileNavOpen(false)} />
         <main className="main">
           <Topbar onMenu={() => setMobileNavOpen((v) => !v)} />
-          <div className="content">{children}</div>
+          <div className="content">
+            {loadState === "loading" ? (
+              <div className="empty">Loading ward data…</div>
+            ) : (
+              <>
+                {loadError && dataSource === "seed" ? (
+                  <div className="clinical-callout" style={{ marginBottom: 18 }}>
+                    Could not load Supabase ({loadError}). Showing local demo data.{" "}
+                    <button type="button" className="mini-btn" onClick={() => void reload()} disabled={refreshing}>
+                      Retry
+                    </button>
+                  </div>
+                ) : null}
+                {children}
+              </>
+            )}
+          </div>
         </main>
       </div>
       {toast ? <Toast message={toast} onDismiss={clearToast} /> : null}

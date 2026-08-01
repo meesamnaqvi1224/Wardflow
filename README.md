@@ -13,22 +13,23 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-## What works today (no database required)
+## What works today
 
 1. Switch role (Nurse / Doctor / Admin) in the top bar.
 2. Open **Maya Patel** (or any patient).
 3. **Record vitals** — abnormal values create alerts automatically.
 4. Open **Alerts**, acknowledge / resolve as a doctor or nurse.
 5. **Reset demo** restores the seed scenario.
+6. Banner shows **Live Supabase** when `.env.local` is configured.
 
-Data is held in browser session state until Supabase is connected.
+With Supabase configured, vitals, alerts, and timeline events persist in the database and reload after refresh.
 
-## Phase 3: Supabase (optional next)
+## Supabase setup
 
 1. Create a free project at [supabase.com](https://supabase.com).
 2. In the SQL editor, run:
-   - `supabase/schema.sql`
-   - `supabase/seed.sql`
+   - `supabase/schema.sql` (or `supabase/apply_all.sql`)
+   - `supabase/seed.sql` (if not included in apply_all)
 3. Copy `.env.example` → `.env.local` and set:
 
 ```text
@@ -36,7 +37,9 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ```
 
-Client stubs live in `src/lib/supabase/`. Wiring live queries is the next coding step after env vars exist.
+Use the **anon / publishable** key only (not service_role).
+
+Data layer: `src/lib/supabase/ward.ts` (load, record vitals, alert status, reset).
 
 ## Demo accounts (planned for Phase 4 auth)
 

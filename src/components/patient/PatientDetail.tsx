@@ -48,11 +48,11 @@ export function PatientDetail({ patient }: { patient: Patient }) {
 
   const patientNumber = `DEMO-${1000 + Number(live.id.slice(1))}`;
 
-  function handleRecordVitals(vitals: Vitals, note: string) {
-    recordVitals(live.id, vitals, note || undefined);
+  async function handleRecordVitals(vitals: Vitals, note: string) {
     setVitalsOpen(false);
     setTab("Vitals");
     setNotice(null);
+    await recordVitals(live.id, vitals, note || undefined);
   }
 
   return (
@@ -175,8 +175,8 @@ export function PatientDetail({ patient }: { patient: Patient }) {
           </div>
           <VitalsGrid vitals={live.vitals} />
           <div className="clinical-callout">
-            Recordings update this session immediately. When Supabase is connected (Phase 3),
-            readings and automatic alerts will persist across devices.
+            Recordings save to the connected data store (Supabase when configured). Abnormal
+            values automatically create alerts and timeline entries.
           </div>
         </div>
       ) : null}
