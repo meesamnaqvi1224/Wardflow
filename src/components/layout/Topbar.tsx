@@ -2,14 +2,17 @@
 
 import { useSession } from "@/lib/session";
 import { RoleSwitcher } from "@/components/RoleSwitcher";
+import { AuthUserMenu } from "@/components/AuthUserMenu";
 
 /**
- * Top bar: mobile menu toggle, ward search, demo role switcher, and the acting
- * user's avatar. Search is presentational in Phase 2 — it wires up to real
- * patient filtering when the module pages arrive.
+ * Top bar: mobile menu, search, data actions, and identity.
+ * Auth mode shows the signed-in staff + sign out; seed mode keeps RoleSwitcher.
  */
 export function Topbar({ onMenu }: { onMenu: () => void }) {
-  const { staff, resetDemo, reload, refreshing, dataSource } = useSession();
+  const { staff, resetDemo, reload, refreshing, dataSource, authMode } =
+    useSession();
+
+  const canReset = authMode === "seed" || staff.role === "admin";
 
   return (
     <header className="topbar">
@@ -34,16 +37,18 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
           {refreshing ? "Refreshing…" : "Refresh"}
         </button>
       ) : null}
-      <button
-        type="button"
-        className="btn"
-        onClick={() => void resetDemo()}
-        disabled={refreshing}
-        title="Restore seed demo data"
-      >
-        Reset demo
-      </button>
-      <RoleSwitcher />
+      {canReset ? (
+        <button
+          type="button"
+          className="btn"
+          onClick={() => void resetDemo()}
+          disabled={refreshing}
+          title="Restore seed demo data"
+        >
+          Reset demo
+        </button>
+      ) : null}
+      {authMode === "auth" ? <AuthUserMenu /> : <RoleSwitcher />}
       <div className="avatar" aria-hidden="true">
         {staff.initials}
       </div>

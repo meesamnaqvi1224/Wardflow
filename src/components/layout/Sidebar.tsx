@@ -11,8 +11,7 @@ interface NavItem {
 }
 
 /**
- * Primary ward navigation. The Administration section only renders for admins,
- * mirroring the role gating the real permission model will enforce in Phase 4.
+ * Primary ward navigation. Administration is admin-only (Phase 4 roles).
  */
 export function Sidebar({
   open,

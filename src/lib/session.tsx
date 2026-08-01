@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import type { User } from "@supabase/supabase-js";
 import type { StaffMember, Vitals, WardData } from "./types";
 import { SEED, STAFF } from "./seed";
 import { applyAlertStatus, applyRecordVitals, evaluateVitals } from "./domain";
@@ -19,18 +20,31 @@ import {
   persistRecordVitals,
   resetWardToSeed,
 } from "./supabase/ward";
+import {
+  createSupabaseBrowserClient,
+  isSupabaseConfigured,
+} from "./supabase/client";
 
 /**
- * Session context: acting staff + ward data.
+ * Session context: acting staff + ward data + optional Supabase Auth.
  *
- * When Supabase env is configured, loads and persists against the remote DB.
- * Falls back to local seed if env is missing or the first load fails.
+ * - Supabase configured: real login; staff resolved via staff.auth_user_id.
+ * - Not configured: local seed + demo RoleSwitcher (Phase 2 offline mode).
  */
 
 type LoadState = "loading" | "ready" | "error";
+type AuthMode = "seed" | "auth";
+type AuthStatus =
+  | "loading"
+  | "signed_out"
+  | "signed_in"
+  | "unlinked"
+  | "seed";
 
 interface SessionValue {
+  /** Current acting staff (authenticated profile or demo selection). */
   staff: StaffMember;
+  /** Demo-only: switch staff when auth is not configured. */
   setStaffId: (id: string) => void;
   allStaff: StaffMember[];
   data: WardData;
@@ -40,6 +54,12 @@ interface SessionValue {
   loadError: string | null;
   dataSource: "supabase" | "seed";
   refreshing: boolean;
+  authMode: AuthMode;
+  authStatus: AuthStatus;
+  user: User | null;
+  authError: string | null;
+  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signOut: () => Promise<void>;
   recordVitals: (
     patientId: string,
     vitals: Vitals,
@@ -59,15 +79,47 @@ function emptyWard(): WardData {
   return structuredClone(SEED);
 }
 
+async function fetchStaffForUser(
+  userId: string,
+): Promise<StaffMember | null> {
+  const sb = createSupabaseBrowserClient();
+  if (!sb) return null;
+  const { data, error } = await sb
+    .from("staff")
+    .select("id,name,role,detail,initials")
+    .eq("auth_user_id", userId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  return {
+    id: data.id,
+    name: data.name,
+    role: data.role,
+    detail: data.detail ?? "",
+    initials: data.initials,
+  };
+}
+
 export function SessionProvider({ children }: { children: React.ReactNode }) {
+  const authMode: AuthMode = isSupabaseConfigured() ? "auth" : "seed";
+
   const [staffId, setStaffId] = useState<string>(DEFAULT_STAFF_ID);
+  const [authStaff, setAuthStaff] = useState<StaffMember | null>(null);
   const [allStaff, setAllStaff] = useState<StaffMember[]>(STAFF);
   const [data, setData] = useState<WardData>(emptyWard);
   const [toast, setToast] = useState<string | null>(null);
-  const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [loadState, setLoadState] = useState<LoadState>(
+    authMode === "seed" ? "loading" : "loading",
+  );
   const [loadError, setLoadError] = useState<string | null>(null);
   const [dataSource, setDataSource] = useState<"supabase" | "seed">(getDataSource());
   const [refreshing, setRefreshing] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [authStatus, setAuthStatus] = useState<AuthStatus>(
+    authMode === "seed" ? "seed" : "loading",
+  );
+  const [authError, setAuthError] = useState<string | null>(null);
+
   const dataRef = useRef(data);
   const loadStateRef = useRef(loadState);
 
@@ -79,15 +131,19 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     loadStateRef.current = loadState;
   }, [loadState]);
 
-  const staff =
-    allStaff.find((s) => s.id === staffId) ??
-    allStaff.find((s) => s.id === DEFAULT_STAFF_ID) ??
-    STAFF[0];
+  const staff: StaffMember =
+    authMode === "auth"
+      ? (authStaff ??
+        allStaff.find((s) => s.id === DEFAULT_STAFF_ID) ??
+        STAFF[0])
+      : (allStaff.find((s) => s.id === staffId) ??
+        allStaff.find((s) => s.id === DEFAULT_STAFF_ID) ??
+        STAFF[0]);
 
   const clearToast = useCallback(() => setToast(null), []);
 
-  const reload = useCallback(async () => {
-    setRefreshing(true);
+  const loadWard = useCallback(async (opts?: { soft?: boolean }) => {
+    if (!opts?.soft) setRefreshing(true);
     try {
       const bundle = await loadWardBundle();
       setAllStaff(bundle.staff);
@@ -95,9 +151,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setDataSource(bundle.source);
       setLoadError(null);
       setLoadState("ready");
-      if (!bundle.staff.some((s) => s.id === staffId)) {
-        setStaffId(DEFAULT_STAFF_ID);
-      }
+      return bundle;
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load ward data";
       setLoadError(message);
@@ -106,16 +160,69 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setData(emptyWard());
         setDataSource("seed");
         setLoadState("ready");
-        setToast(`Supabase load failed — using local demo data. ${message}`);
+        if (authMode === "seed") {
+          setToast(`Supabase load failed — using local demo data. ${message}`);
+        }
       } else {
         setToast(`Refresh failed: ${message}`);
       }
+      throw err;
     } finally {
-      setRefreshing(false);
+      if (!opts?.soft) setRefreshing(false);
     }
-  }, [staffId]);
+  }, [authMode]);
 
+  const reload = useCallback(async () => {
+    try {
+      await loadWard();
+    } catch {
+      /* toast already set */
+    }
+  }, [loadWard]);
+
+  const resolveAuthUser = useCallback(async (nextUser: User | null) => {
+    setUser(nextUser);
+    setAuthError(null);
+
+    if (!nextUser) {
+      setAuthStaff(null);
+      setAuthStatus("signed_out");
+      setData(emptyWard());
+      setLoadState("ready");
+      return;
+    }
+
+    try {
+      const profile = await fetchStaffForUser(nextUser.id);
+      if (!profile) {
+        setAuthStaff(null);
+        setAuthStatus("unlinked");
+        setAuthError(
+          "This account is signed in but not linked to a staff profile. Run scripts/setup-demo-auth.mjs or set staff.auth_user_id in Supabase.",
+        );
+        setLoadState("ready");
+        return;
+      }
+      setAuthStaff(profile);
+      setAuthStatus("signed_in");
+      setLoadState("loading");
+      try {
+        await loadWard({ soft: true });
+      } catch {
+        /* loadWard sets error state */
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load staff profile";
+      setAuthStaff(null);
+      setAuthStatus("unlinked");
+      setAuthError(message);
+      setLoadState("ready");
+    }
+  }, [loadWard]);
+
+  // Seed mode: load ward once, no auth.
   useEffect(() => {
+    if (authMode !== "seed") return;
     let cancelled = false;
     (async () => {
       try {
@@ -140,6 +247,56 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
+  }, [authMode]);
+
+  // Auth mode: subscribe to session.
+  useEffect(() => {
+    if (authMode !== "auth") return;
+    const sb = createSupabaseBrowserClient();
+    if (!sb) {
+      setAuthStatus("signed_out");
+      setLoadState("ready");
+      return;
+    }
+
+    let cancelled = false;
+
+    sb.auth.getUser().then(({ data }) => {
+      if (cancelled) return;
+      void resolveAuthUser(data.user ?? null);
+    });
+
+    const {
+      data: { subscription },
+    } = sb.auth.onAuthStateChange((_event, session) => {
+      void resolveAuthUser(session?.user ?? null);
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, [authMode, resolveAuthUser]);
+
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      const sb = createSupabaseBrowserClient();
+      if (!sb) return { error: "Supabase is not configured" };
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) return { error: error.message };
+      // onAuthStateChange will resolve staff + ward data
+      return { error: null };
+    },
+    [],
+  );
+
+  const signOut = useCallback(async () => {
+    const sb = createSupabaseBrowserClient();
+    if (sb) await sb.auth.signOut();
+    setAuthStaff(null);
+    setUser(null);
+    setAuthStatus("signed_out");
+    setData(emptyWard());
   }, []);
 
   const recordVitals = useCallback(
@@ -220,6 +377,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   );
 
   const resetDemo = useCallback(async () => {
+    if (authMode === "auth" && staff.role !== "admin") {
+      setToast("Only admins can reset demo data.");
+      return;
+    }
     setRefreshing(true);
     try {
       const bundle = await resetWardToSeed();
@@ -237,7 +398,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [authMode, staff.role]);
 
   const value = useMemo<SessionValue>(
     () => ({
@@ -251,6 +412,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       loadError,
       dataSource,
       refreshing,
+      authMode,
+      authStatus,
+      user,
+      authError,
+      signIn,
+      signOut,
       recordVitals,
       acknowledgeAlert,
       resolveAlert,
@@ -267,6 +434,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       loadError,
       dataSource,
       refreshing,
+      authMode,
+      authStatus,
+      user,
+      authError,
+      signIn,
+      signOut,
       recordVitals,
       acknowledgeAlert,
       resolveAlert,

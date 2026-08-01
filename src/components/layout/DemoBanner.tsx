@@ -7,13 +7,17 @@ import { useSession } from "@/lib/session";
  * Phase 2 onward so it is impossible to mistake seeded fiction for real PHI.
  */
 export function DemoBanner() {
-  const { dataSource, loadState, refreshing } = useSession();
-  const sourceLabel =
-    loadState === "loading" || refreshing
-      ? "Loading…"
-      : dataSource === "supabase"
-        ? "Live Supabase"
-        : "Local demo data";
+  const { dataSource, loadState, refreshing, authMode, authStatus, staff } =
+    useSession();
+
+  let sourceLabel = "Local demo data";
+  if (loadState === "loading" || refreshing) {
+    sourceLabel = "Loading…";
+  } else if (authMode === "auth" && authStatus === "signed_in") {
+    sourceLabel = `Signed in · ${staff.role} · ${dataSource === "supabase" ? "Live Supabase" : "Local"}`;
+  } else if (dataSource === "supabase") {
+    sourceLabel = "Live Supabase";
+  }
 
   return (
     <div className="demo-banner" role="note">

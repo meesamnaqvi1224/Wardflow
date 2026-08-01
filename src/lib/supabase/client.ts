@@ -1,8 +1,8 @@
 import { createBrowserClient } from "@supabase/ssr";
 
 /**
- * Browser Supabase client. Returns null when env vars are missing so the app
- * keeps running on in-memory seed data until Phase 3 is configured.
+ * Browser Supabase client (cookie-backed via @supabase/ssr).
+ * Returns null when env vars are missing so offline seed mode still works.
  */
 export function createSupabaseBrowserClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

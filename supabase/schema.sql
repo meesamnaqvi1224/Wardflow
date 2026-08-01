@@ -141,7 +141,7 @@ alter table vital_readings enable row level security;
 alter table audit_events enable row level security;
 
 -- Temporary demo policies: allow anon read/write until real auth lands.
--- REPLACE these before any real deployment.
+-- REPLACE with supabase/phase4_auth.sql after linking demo users.
 create policy "demo_staff_all" on staff for all using (true) with check (true);
 create policy "demo_patients_all" on patients for all using (true) with check (true);
 create policy "demo_alerts_all" on alerts for all using (true) with check (true);

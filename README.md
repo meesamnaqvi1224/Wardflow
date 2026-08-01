@@ -13,16 +13,18 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+With Supabase configured you will be redirected to **`/login`**.
+
 ## What works today
 
-1. Switch role (Nurse / Doctor / Admin) in the top bar.
+1. **Sign in** as doctor / nurse / admin (Phase 4).
 2. Open **Maya Patel** (or any patient).
 3. **Record vitals** — abnormal values create alerts automatically.
 4. Open **Alerts**, acknowledge / resolve as a doctor or nurse.
-5. **Reset demo** restores the seed scenario.
-6. Banner shows **Live Supabase** when `.env.local` is configured.
+5. **Reset demo** (admin only when signed in) restores the seed scenario.
+6. Banner shows signed-in role + **Live Supabase** when connected.
 
-With Supabase configured, vitals, alerts, and timeline events persist in the database and reload after refresh.
+Without Supabase env vars, the app runs in **offline seed mode** with a demo role switcher (no login).
 
 ## Supabase setup
 
@@ -39,13 +41,41 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 
 Use the **anon / publishable** key only (not service_role).
 
+4. In Supabase **Authentication → Providers → Email**, turn **off** “Confirm email” for local demo (or confirm users manually).
+5. Create demo users and link them to staff:
+
+```bash
+node scripts/setup-demo-auth.mjs
+# optional custom password:
+# DEMO_PASSWORD='YourSecurePass1!' node scripts/setup-demo-auth.mjs
+```
+
+6. Apply Phase 4 RLS (authenticated staff only):
+
+   - Run `supabase/phase4_auth.sql` in the SQL editor.
+
 Data layer: `src/lib/supabase/ward.ts` (load, record vitals, alert status, reset).
 
-## Demo accounts (planned for Phase 4 auth)
+## Demo accounts (Phase 4)
 
-- `doctor@wardflow.demo`
-- `nurse@wardflow.demo`
-- `admin@wardflow.demo`
+| Email | Staff | Role |
+|-------|--------|------|
+| `doctor@example.com` | Dr. Sarah Khan (`doctor-1`) | doctor |
+| `nurse@example.com` | Nurse Alex Morgan (`nurse-1`) | nurse |
+| `admin@example.com` | Jordan Lee (`admin-1`) | admin |
+
+Default shared password (from setup script): **`WardFlow!demo1`**
+
+Change it with `DEMO_PASSWORD=...` when running the setup script.
+
+If the setup script hits **email rate limit**, wait a few minutes and re-run, or create the three users in **Authentication → Users** and run `supabase/phase4_link_demo_users.sql`.
+
+## Phase 4 notes
+
+- Middleware protects all routes except `/login` when Supabase is configured.
+- Acting staff comes from `staff.auth_user_id` → no role dropdown when signed in.
+- RLS requires a linked staff row; unlinked accounts see an error, not ward data.
+- Admin-only: Administration nav, demo reset.
 
 ## Important
 

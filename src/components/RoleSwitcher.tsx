@@ -3,9 +3,8 @@
 import { useSession } from "@/lib/session";
 
 /**
- * Demo role switcher. Stands in for real login until Phase 4 — selecting a
- * staff member changes the acting user, which drives assignment filtering and
- * (later) permissions. Replaced by authenticated accounts, not extended.
+ * Offline demo role switcher — only used when Supabase is not configured.
+ * Phase 4 replaces this with real Auth accounts in auth mode.
  */
 export function RoleSwitcher() {
   const { staff, setStaffId, allStaff } = useSession();

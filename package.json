@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "setup:demo-auth": "node scripts/setup-demo-auth.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
