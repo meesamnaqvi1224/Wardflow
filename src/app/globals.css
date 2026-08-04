@@ -835,31 +835,38 @@ tbody tr.clickable:hover {
   place-items: center;
   padding: 32px 16px;
   background:
-    radial-gradient(ellipse at top, var(--blue-soft), transparent 55%),
+    radial-gradient(ellipse 80% 50% at 50% -10%, var(--blue-soft), transparent 60%),
     var(--paper);
 }
 
 .login-card {
-  width: min(440px, 100%);
+  width: min(420px, 100%);
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 32px 28px 24px;
+  border-radius: 18px;
+  padding: 36px 32px 28px;
   box-shadow: var(--shadow);
 }
 
 .login-brand {
   font-family: var(--font-display), "Newsreader", serif;
-  font-size: 32px;
-  margin-bottom: 18px;
+  font-size: 34px;
+  margin-bottom: 20px;
   color: var(--ink);
+  letter-spacing: -0.02em;
 }
 .login-brand span {
   color: var(--blue);
 }
 
+.login-card h1 {
+  margin-bottom: 8px;
+  font-size: 28px;
+}
+
 .login-sub {
-  margin-bottom: 22px;
+  margin-bottom: 26px;
+  line-height: 1.45;
 }
 
 .login-form {
@@ -879,64 +886,53 @@ tbody tr.clickable:hover {
 
 .login-input {
   width: 100%;
-  padding: 11px 12px;
+  padding: 12px 14px;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: 10px;
   background: var(--paper);
   color: var(--ink);
   outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.login-input::placeholder {
+  color: #9aadb5;
 }
 .login-input:focus {
   border-color: var(--blue);
   box-shadow: 0 0 0 3px var(--blue-soft);
+  background: #fff;
 }
 
 .login-submit {
-  margin-top: 16px;
+  margin-top: 20px;
   width: 100%;
   justify-content: center;
+  padding: 12px 16px;
+  font-size: 15px;
+}
+.login-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .login-error {
-  margin-top: 10px;
-  padding: 10px 12px;
-  border-radius: 8px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
   background: var(--red-soft);
   color: var(--red);
   font-size: 13px;
   font-weight: 600;
-}
-
-.login-demo {
-  margin-top: 28px;
-  padding-top: 20px;
-  border-top: 1px solid var(--line);
-}
-
-.login-demo-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.login-demo-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  text-align: left;
-  width: 100%;
-}
-.login-demo-btn span {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--muted);
+  line-height: 1.4;
 }
 
 .login-foot {
-  margin: 22px 0 0;
+  margin: 28px 0 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
   font-size: 12px;
   text-align: center;
+  line-height: 1.45;
 }
 
 .auth-user-menu {

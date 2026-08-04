@@ -1,6 +1,3 @@
-allowBuilds:
-  sharp: set this to true or false
-  unrs-resolver: set this to true or false
-ignoredBuiltDependencies:
-  - sharp
-  - unrs-resolver
+# Single-package app — no workspace packages.
+# (Previous content was invalid pnpm config and broke `pnpm dev`.)
+packages: []

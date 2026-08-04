@@ -6,26 +6,26 @@
 -- or Authentication → Users → Add user (password: WardFlow!demo1)
 --
 -- Emails:
---   doctor@example.com → doctor-1
---   nurse@example.com  → nurse-1
---   admin@example.com  → admin-1
+--   meesamnaqvi1224@gmail.com → doctor-1
+--   ahsitmedia@gmail.com → nurse-1
+--   meesamseowork@gmail.com  → admin-1
 
 update public.staff s
 set auth_user_id = u.id
 from auth.users u
-where u.email = 'doctor@example.com'
+where u.email = 'meesamnaqvi1224@gmail.com'
   and s.id = 'doctor-1';
 
 update public.staff s
 set auth_user_id = u.id
 from auth.users u
-where u.email = 'nurse@example.com'
+where u.email = 'ahsitmedia@gmail.com'
   and s.id = 'nurse-1';
 
 update public.staff s
 set auth_user_id = u.id
 from auth.users u
-where u.email = 'admin@example.com'
+where u.email = 'meesamseowork@gmail.com'
   and s.id = 'admin-1';
 
 -- Verify

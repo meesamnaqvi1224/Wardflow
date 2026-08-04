@@ -1,11 +1,7 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  DEFAULT_DEMO_PASSWORD,
-  DEMO_ACCOUNTS,
-} from "@/lib/auth-accounts";
 import { useSession } from "@/lib/session";
 
 export function LoginForm() {
@@ -14,19 +10,12 @@ export function LoginForm() {
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next") || "/";
 
-  const [email, setEmail] = useState<string>(DEMO_ACCOUNTS[1].email);
-  const [password, setPassword] = useState<string>(DEFAULT_DEMO_PASSWORD);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const offline = authMode === "seed";
-
-  const subtitle = useMemo(() => {
-    if (offline) {
-      return "Supabase is not configured — open the app directly for local demo mode.";
-    }
-    return "Sign in with a demo care-team account to access the ward.";
-  }, [offline]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -45,29 +34,26 @@ export function LoginForm() {
     }
   }
 
-  function fillAccount(nextEmail: string) {
-    setEmail(nextEmail);
-    setPassword(DEFAULT_DEMO_PASSWORD);
-    setError(null);
-  }
-
   return (
     <div className="login-page">
       <div className="login-card">
         <div className="login-brand">
           Ward<span>Flow</span>
         </div>
-        <p className="eyebrow">Hospital ward portal</p>
+        <p className="eyebrow">Care team access</p>
         <h1>Sign in</h1>
-        <p className="muted login-sub">{subtitle}</p>
+        <p className="muted login-sub">
+          {offline
+            ? "Authentication is not configured for this environment."
+            : "Enter your credentials to access the ward portal."}
+        </p>
 
         {offline ? (
           <div className="clinical-callout" style={{ marginBottom: 18 }}>
-            Missing <code>NEXT_PUBLIC_SUPABASE_*</code> env vars. Start the app at{" "}
-            <a href="/" className="text-link" style={{ display: "inline" }}>
-              the dashboard
-            </a>{" "}
-            to use local seed data and the role switcher.
+            This environment is running without Supabase. Contact your
+            administrator or configure{" "}
+            <code>NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
+            <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>.
           </div>
         ) : (
           <form className="login-form" onSubmit={(e) => void handleSubmit(e)}>
@@ -78,10 +64,13 @@ export function LoginForm() {
               id="email"
               className="login-input"
               type="email"
+              name="email"
               autoComplete="username"
+              placeholder="you@hospital.org"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              autoFocus
             />
 
             <label className="login-label" htmlFor="password">
@@ -91,7 +80,9 @@ export function LoginForm() {
               id="password"
               className="login-input"
               type="password"
+              name="password"
               autoComplete="current-password"
+              placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -105,47 +96,24 @@ export function LoginForm() {
 
             {authStatus === "unlinked" ? (
               <div className="login-error" role="alert">
-                Signed in, but this user is not linked to a staff row. Run{" "}
-                <code>node scripts/setup-demo-auth.mjs</code>.
+                Your account is signed in but is not linked to a care-team
+                profile. Contact your ward administrator.
               </div>
             ) : null}
 
             <button
               type="submit"
               className="btn primary login-submit"
-              disabled={submitting}
+              disabled={submitting || !email.trim() || !password}
             >
               {submitting ? "Signing in…" : "Sign in"}
             </button>
           </form>
         )}
 
-        {!offline ? (
-          <div className="login-demo">
-            <div className="nav-label" style={{ margin: "0 0 10px", color: "var(--muted)" }}>
-              Demo accounts
-            </div>
-            <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
-              Shared password: <code>{DEFAULT_DEMO_PASSWORD}</code>
-            </p>
-            <div className="login-demo-list">
-              {DEMO_ACCOUNTS.map((a) => (
-                <button
-                  key={a.email}
-                  type="button"
-                  className="btn login-demo-btn"
-                  onClick={() => fillAccount(a.email)}
-                >
-                  <strong>{a.label}</strong>
-                  <span>{a.email}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
         <p className="muted login-foot">
-          Demonstration system · Fictional patient data only · Not for real PHI
+          Authorized care-team use only · Do not enter real patient data in demo
+          environments
         </p>
       </div>
     </div>
