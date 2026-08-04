@@ -194,6 +194,67 @@ a {
   color: var(--blue);
   font-weight: 700;
 }
+.avatar-link:hover {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.auth-user-link:hover {
+  color: var(--blue);
+  text-decoration: underline;
+}
+.sidebar-foot-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 10px;
+}
+a.sidebar-foot {
+  margin-top: auto;
+}
+.sidebar-foot-link:hover strong {
+  color: #82d1d3;
+}
+.sidebar-foot-action {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #82d1d3;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.profile-layout {
+  align-items: start;
+}
+.profile-card {
+  text-align: center;
+}
+.profile-avatar {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-size: 22px;
+  font-weight: 700;
+}
+.profile-form {
+  margin-top: 8px;
+}
+.field-hint {
+  font-size: 11px;
+  color: var(--muted);
+}
+.input-readonly,
+.field input:disabled,
+.field select:disabled {
+  background: var(--paper);
+  color: var(--muted);
+  cursor: not-allowed;
+}
 
 .content {
   max-width: 1480px;

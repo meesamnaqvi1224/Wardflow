@@ -103,6 +103,55 @@ export async function loadWardBundle(): Promise<WardBundle> {
   };
 }
 
+/** Update staff display fields (name, detail, initials). Role is not changed here. */
+export async function persistStaffProfile(args: {
+  staffId: string;
+  name: string;
+  detail: string;
+  initials: string;
+}): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  const sb = requireClient();
+  const { error } = await sb
+    .from("staff")
+    .update({
+      name: args.name,
+      detail: args.detail,
+      initials: args.initials,
+    })
+    .eq("id", args.staffId);
+  if (error) throw new Error(error.message);
+}
+
+/** Update patient demographic / assignment fields (not vitals). */
+export async function persistPatientProfile(args: {
+  patient: Patient;
+}): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  const sb = requireClient();
+  const p = args.patient;
+  const now = new Date().toISOString();
+
+  // admitted is display text in the app; keep admitted_on if we can parse a date,
+  // otherwise only update the fields we always have.
+  const { error } = await sb
+    .from("patients")
+    .update({
+      name: p.name,
+      age: p.age,
+      room: p.room,
+      diagnosis: p.diagnosis,
+      allergy: p.allergy,
+      status: p.status,
+      doctor_id: p.doctorId,
+      nurse_id: p.nurseId,
+      updated_at: now,
+    })
+    .eq("id", p.id);
+
+  if (error) throw new Error(error.message);
+}
+
 export async function persistRecordVitals(args: {
   patient: Patient;
   vitals: Vitals;

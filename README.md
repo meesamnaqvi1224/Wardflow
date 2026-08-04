@@ -53,6 +53,7 @@ node scripts/setup-demo-auth.mjs
 6. Apply Phase 4 RLS (authenticated staff only):
 
    - Run `supabase/phase4_auth.sql` in the SQL editor.
+   - Run `supabase/phase4_profile_edit.sql` so staff can edit their own profile.
 
 Data layer: `src/lib/supabase/ward.ts` (load, record vitals, alert status, reset).
 

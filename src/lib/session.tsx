@@ -10,14 +10,16 @@ import {
   useState,
 } from "react";
 import type { User } from "@supabase/supabase-js";
-import type { StaffMember, Vitals, WardData } from "./types";
+import type { Patient, PatientStatus, StaffMember, Vitals, WardData } from "./types";
 import { SEED, STAFF } from "./seed";
 import { applyAlertStatus, applyRecordVitals, evaluateVitals } from "./domain";
 import {
   getDataSource,
   loadWardBundle,
   persistAlertStatus,
+  persistPatientProfile,
   persistRecordVitals,
+  persistStaffProfile,
   resetWardToSeed,
 } from "./supabase/ward";
 import {
@@ -65,6 +67,24 @@ interface SessionValue {
     vitals: Vitals,
     note?: string,
   ) => Promise<{ abnormalCount: number }>;
+  updateStaffProfile: (input: {
+    name: string;
+    detail: string;
+    initials: string;
+  }) => Promise<{ error: string | null }>;
+  updatePatientProfile: (
+    patientId: string,
+    input: {
+      name: string;
+      age: number;
+      room: string;
+      diagnosis: string;
+      allergy: string;
+      status: PatientStatus;
+      doctorId: string;
+      nurseId: string;
+    },
+  ) => Promise<{ error: string | null }>;
   acknowledgeAlert: (alertId: string) => Promise<void>;
   resolveAlert: (alertId: string) => Promise<void>;
   resetDemo: () => Promise<void>;
@@ -376,6 +396,119 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [updateAlert],
   );
 
+  const updateStaffProfile = useCallback(
+    async (input: { name: string; detail: string; initials: string }) => {
+      const name = input.name.trim();
+      const detail = input.detail.trim();
+      const initials = input.initials.trim().toUpperCase().slice(0, 3);
+      if (!name || !initials) {
+        return { error: "Name and initials are required." };
+      }
+
+      const next: StaffMember = {
+        ...staff,
+        name,
+        detail,
+        initials,
+      };
+
+      const previousAuth = authStaff;
+      const previousAll = allStaff;
+
+      if (authMode === "auth") setAuthStaff(next);
+      setAllStaff((list) => list.map((s) => (s.id === staff.id ? next : s)));
+
+      try {
+        await persistStaffProfile({
+          staffId: staff.id,
+          name: next.name,
+          detail: next.detail,
+          initials: next.initials,
+        });
+        setToast(
+          dataSource === "supabase"
+            ? "Profile saved"
+            : "Profile updated (local demo)",
+        );
+        return { error: null };
+      } catch (err) {
+        if (authMode === "auth") setAuthStaff(previousAuth);
+        setAllStaff(previousAll);
+        const message = err instanceof Error ? err.message : "Save failed";
+        setToast(`Could not save profile: ${message}`);
+        return { error: message };
+      }
+    },
+    [staff, authStaff, allStaff, authMode, dataSource],
+  );
+
+  const updatePatientProfile = useCallback(
+    async (
+      patientId: string,
+      input: {
+        name: string;
+        age: number;
+        room: string;
+        diagnosis: string;
+        allergy: string;
+        status: PatientStatus;
+        doctorId: string;
+        nurseId: string;
+      },
+    ) => {
+      const existing = dataRef.current.patients.find((p) => p.id === patientId);
+      if (!existing) return { error: "Patient not found." };
+
+      const name = input.name.trim();
+      const room = input.room.trim();
+      const diagnosis = input.diagnosis.trim();
+      const allergy = input.allergy.trim() || "None recorded";
+      if (!name || !room || !diagnosis || !Number.isFinite(input.age) || input.age <= 0) {
+        return { error: "Name, age, room, and diagnosis are required." };
+      }
+
+      const nextPatient: Patient = {
+        ...existing,
+        name,
+        age: Math.round(input.age),
+        room,
+        diagnosis,
+        allergy,
+        status: input.status,
+        doctorId: input.doctorId,
+        nurseId: input.nurseId,
+        updated: "Just now",
+      };
+
+      const previous = dataRef.current;
+      const nextData: WardData = {
+        ...previous,
+        patients: previous.patients.map((p) =>
+          p.id === patientId ? nextPatient : p,
+        ),
+      };
+      dataRef.current = nextData;
+      setData(nextData);
+
+      try {
+        await persistPatientProfile({ patient: nextPatient });
+        setToast(
+          dataSource === "supabase"
+            ? "Patient profile saved"
+            : "Patient profile updated (local demo)",
+        );
+        return { error: null };
+      } catch (err) {
+        dataRef.current = previous;
+        setData(previous);
+        const message = err instanceof Error ? err.message : "Save failed";
+        setToast(`Could not save patient: ${message}`);
+        return { error: message };
+      }
+    },
+    [dataSource],
+  );
+
   const resetDemo = useCallback(async () => {
     if (authMode === "auth" && staff.role !== "admin") {
       setToast("Only admins can reset demo data.");
@@ -419,6 +552,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       signIn,
       signOut,
       recordVitals,
+      updateStaffProfile,
+      updatePatientProfile,
       acknowledgeAlert,
       resolveAlert,
       resetDemo,
@@ -441,6 +576,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       signIn,
       signOut,
       recordVitals,
+      updateStaffProfile,
+      updatePatientProfile,
       acknowledgeAlert,
       resolveAlert,
       resetDemo,

@@ -7,6 +7,7 @@ import type { Patient, Vitals } from "@/lib/types";
 import { Badge } from "@/components/Badge";
 import { VitalsGrid } from "@/components/vitals/VitalsGrid";
 import { RecordVitalsDrawer } from "@/components/vitals/RecordVitalsDrawer";
+import { EditPatientDrawer } from "@/components/patient/EditPatientDrawer";
 import { AlertRow } from "@/components/alerts/AlertRow";
 import { TaskRow } from "@/components/tasks/TaskRow";
 import { MedicationRow } from "@/components/medications/MedicationRow";
@@ -18,19 +19,22 @@ type Tab = (typeof TABS)[number];
 
 /**
  * Patient detail view with the six-tab layout from v1.
- * Record vitals is live (in-memory); notes / tasks / meds still land next.
+ * Profile edit + vitals are live; notes / tasks / meds expand next.
  */
 export function PatientDetail({ patient }: { patient: Patient }) {
   const {
     staff,
+    allStaff,
     data,
     recordVitals,
+    updatePatientProfile,
     acknowledgeAlert,
     resolveAlert,
   } = useSession();
   const [tab, setTab] = useState<Tab>("Overview");
   const [notice, setNotice] = useState<string | null>(null);
   const [vitalsOpen, setVitalsOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   // Re-read patient from session so vitals updates re-render after recording.
   const live = data.patients.find((p) => p.id === patient.id) ?? patient;
@@ -42,11 +46,18 @@ export function PatientDetail({ patient }: { patient: Patient }) {
   const timeline = data.timeline.filter((e) => e.patientId === live.id);
 
   const isClinician = staff.role === "doctor" || staff.role === "nurse";
+  const canEditProfile =
+    staff.role === "doctor" || staff.role === "nurse" || staff.role === "admin";
+  const canEditAssignments = staff.role === "admin" || staff.role === "doctor";
   const canManageAlerts = staff.role === "doctor" || staff.role === "nurse";
   const futureAction = (label: string) => () =>
-    setNotice(`"${label}" is next after the vitals workflow. Still in-memory demo mode.`);
+    setNotice(`"${label}" is planned for a later module.`);
 
   const patientNumber = `DEMO-${1000 + Number(live.id.slice(1))}`;
+  const doctorName =
+    allStaff.find((s) => s.id === live.doctorId)?.name ?? live.doctorId;
+  const nurseName =
+    allStaff.find((s) => s.id === live.nurseId)?.name ?? live.nurseId;
 
   async function handleRecordVitals(vitals: Vitals, note: string) {
     setVitalsOpen(false);
@@ -73,6 +84,9 @@ export function PatientDetail({ patient }: { patient: Patient }) {
             <p className="muted">
               Admitted {live.admitted} · Primary diagnosis: {live.diagnosis}
             </p>
+            <p className="muted" style={{ marginTop: 6, fontSize: 13 }}>
+              Care team: {doctorName} · {nurseName}
+            </p>
           </div>
           <div>
             <Badge tone={live.status} />
@@ -80,6 +94,11 @@ export function PatientDetail({ patient }: { patient: Patient }) {
         </div>
         <div className="allergy">Allergy: {live.allergy}</div>
         <div className="actions" style={{ marginTop: 14 }}>
+          {canEditProfile ? (
+            <button className="btn" onClick={() => setEditOpen(true)}>
+              Edit profile
+            </button>
+          ) : null}
           {isClinician ? (
             <>
               <button className="btn primary" onClick={() => setVitalsOpen(true)}>
@@ -92,11 +111,7 @@ export function PatientDetail({ patient }: { patient: Patient }) {
                 Create task
               </button>
             </>
-          ) : (
-            <button className="btn" onClick={futureAction("Edit admission")}>
-              Edit admission
-            </button>
-          )}
+          ) : null}
           {staff.role === "doctor" ? (
             <button className="btn" onClick={futureAction("Order medication")}>
               Order medication
@@ -232,6 +247,20 @@ export function PatientDetail({ patient }: { patient: Patient }) {
           patient={live}
           onClose={() => setVitalsOpen(false)}
           onSubmit={handleRecordVitals}
+        />
+      ) : null}
+
+      {editOpen ? (
+        <EditPatientDrawer
+          patient={live}
+          staffList={allStaff}
+          canEditAssignments={canEditAssignments}
+          onClose={() => setEditOpen(false)}
+          onSubmit={async (input) => {
+            const result = await updatePatientProfile(live.id, input);
+            if (result.error) throw new Error(result.error);
+            setNotice(null);
+          }}
         />
       ) : null}
     </>

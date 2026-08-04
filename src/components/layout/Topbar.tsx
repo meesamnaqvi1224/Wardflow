@@ -1,12 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useSession } from "@/lib/session";
 import { RoleSwitcher } from "@/components/RoleSwitcher";
 import { AuthUserMenu } from "@/components/AuthUserMenu";
 
 /**
  * Top bar: mobile menu, search, data actions, and identity.
- * Auth mode shows the signed-in staff + sign out; seed mode keeps RoleSwitcher.
+ * Avatar links to My profile for every role.
  */
 export function Topbar({ onMenu }: { onMenu: () => void }) {
   const { staff, resetDemo, reload, refreshing, dataSource, authMode } =
@@ -48,10 +49,22 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
           Reset demo
         </button>
       ) : null}
-      {authMode === "auth" ? <AuthUserMenu /> : <RoleSwitcher />}
-      <div className="avatar" aria-hidden="true">
+      {authMode === "auth" ? <AuthUserMenu /> : (
+        <>
+          <RoleSwitcher />
+          <Link href="/profile" className="btn">
+            Profile
+          </Link>
+        </>
+      )}
+      <Link
+        href="/profile"
+        className="avatar avatar-link"
+        title="My profile"
+        aria-label="Open my profile"
+      >
         {staff.initials}
-      </div>
+      </Link>
     </header>
   );
 }

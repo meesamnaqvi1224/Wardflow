@@ -32,6 +32,7 @@ export function Sidebar({
     { href: "/tasks", label: "Tasks", count: openTasks },
     { href: "/alerts", label: "Alerts", count: activeAlerts },
     { href: "/medications", label: "Medications" },
+    { href: "/profile", label: "My profile" },
   ];
 
   const isActive = (href: string) =>
@@ -63,10 +64,11 @@ export function Sidebar({
           {renderItem({ href: "/administration", label: "Administration" })}
         </>
       ) : null}
-      <div className="sidebar-foot">
+      <Link href="/profile" className="sidebar-foot sidebar-foot-link" onClick={onNavigate}>
         <small>Medical Ward A · Day Shift</small>
         <strong>{staff.name}</strong>
-      </div>
+        <span className="sidebar-foot-action">View profile</span>
+      </Link>
     </aside>
   );
 }
