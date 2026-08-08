@@ -38,6 +38,7 @@ export function PatientDetail({ patient }: { patient: Patient }) {
     administerMedication,
     orderMedication,
     addNote,
+    actionBusy,
   } = useSession();
   const [tab, setTab] = useState<Tab>("Overview");
   const [notice, setNotice] = useState<string | null>(null);
@@ -178,6 +179,7 @@ export function PatientDetail({ patient }: { patient: Patient }) {
                   <AlertRow
                     key={a.id}
                     alert={a}
+                    busy={actionBusy}
                     onAcknowledge={canManageAlerts ? acknowledgeAlert : undefined}
                     onResolve={canManageAlerts ? resolveAlert : undefined}
                   />
@@ -189,6 +191,7 @@ export function PatientDetail({ patient }: { patient: Patient }) {
                 <TaskRow
                   key={t.id}
                   task={t}
+                  busy={actionBusy}
                   onComplete={
                     isClinician ? (id) => void completeTask(id) : undefined
                   }
@@ -204,6 +207,7 @@ export function PatientDetail({ patient }: { patient: Patient }) {
                   <MedicationRow
                     key={m.id}
                     medication={m}
+                    busy={actionBusy}
                     onAdminister={
                       canAdminister ? (id) => void administerMedication(id) : undefined
                     }
@@ -254,6 +258,7 @@ export function PatientDetail({ patient }: { patient: Patient }) {
               <MedicationRow
                 key={m.id}
                 medication={m}
+                busy={actionBusy}
                 onAdminister={
                   canAdminister ? (id) => void administerMedication(id) : undefined
                 }
@@ -298,6 +303,7 @@ export function PatientDetail({ patient }: { patient: Patient }) {
               <TaskRow
                 key={t.id}
                 task={t}
+                busy={actionBusy}
                 onComplete={
                   isClinician ? (id) => void completeTask(id) : undefined
                 }

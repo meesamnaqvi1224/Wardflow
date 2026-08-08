@@ -822,21 +822,57 @@ tbody tr.clickable:hover {
   color: var(--muted);
   padding-top: 0;
 }
-@media (max-width: 800px) {
+@media (max-width: 900px) {
   .admin-row,
-  .admin-table-patients .admin-row {
+  .admin-table-patients .admin-row,
+  .admin-table-staff .admin-row,
+  .admin-table-audit .admin-row {
     grid-template-columns: 1fr;
     gap: 6px;
+  }
+  .admin-head {
+    display: none;
   }
 }
 .mini-btn {
   border: 1px solid var(--line);
   background: white;
-  padding: 5px 8px;
+  padding: 8px 12px;
   border-radius: 6px;
   color: var(--blue);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
+  min-height: 36px;
+}
+.mini-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.loading-block {
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  min-height: 160px;
+}
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--line);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.nav-backdrop {
+  display: none;
 }
 .empty {
   padding: 30px;
@@ -978,15 +1014,37 @@ tbody tr.clickable:hover {
   }
 }
 @media (max-width: 760px) {
+  .demo-banner {
+    font-size: 10px;
+    padding: 0 8px;
+    letter-spacing: 0.02em;
+    text-align: center;
+    line-height: 1.2;
+    height: auto;
+    min-height: 30px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
   .shell {
     display: block;
-    padding-top: 30px;
+    padding-top: 42px;
+  }
+  .nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 34;
+    border: 0;
+    background: rgba(9, 31, 42, 0.45);
+    cursor: pointer;
   }
   .sidebar {
     display: none;
-    z-index: 35;
-    top: 30px;
+    z-index: 36;
+    top: 0;
     width: min(300px, 86vw);
+    padding-top: 48px;
+    box-shadow: 8px 0 32px rgba(0, 0, 0, 0.25);
   }
   .sidebar.open {
     display: flex;
@@ -997,27 +1055,47 @@ tbody tr.clickable:hover {
   .topbar {
     height: auto;
     min-height: 64px;
-    padding: 12px 16px;
+    padding: 12px 14px;
     flex-wrap: wrap;
+    gap: 10px;
   }
   .mobile-menu {
     display: block;
   }
+  .patient-search {
+    order: 5;
+    max-width: none;
+    flex: 1 1 100%;
+  }
   .search {
-    order: 3;
+    order: 5;
     max-width: none;
     flex-basis: 100%;
   }
+  .top-spacer {
+    display: none;
+  }
   .content {
-    padding: 22px 16px;
+    padding: 18px 14px;
   }
   .page-head,
   .patient-banner-main {
     display: block;
   }
+  .page-head h1 {
+    font-size: 28px;
+  }
   .page-head .actions,
   .patient-banner .actions {
-    margin-top: 16px;
+    margin-top: 14px;
+    width: 100%;
+  }
+  .page-head .actions .btn,
+  .patient-banner .actions .btn {
+    flex: 1 1 auto;
+  }
+  .actions {
+    gap: 8px;
   }
   .stats,
   .attention-grid,
@@ -1030,6 +1108,31 @@ tbody tr.clickable:hover {
   }
   .auth-user-menu {
     flex-wrap: wrap;
+    gap: 6px;
+  }
+  .auth-user-meta {
+    align-items: flex-start;
+  }
+  .drawer {
+    width: 100%;
+    max-width: 100%;
+    padding: 18px 16px 28px;
+  }
+  .overlay {
+    justify-content: stretch;
+  }
+  .toast {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    max-width: none;
+  }
+  .profile-layout.two-col {
+    grid-template-columns: 1fr;
+  }
+  .btn,
+  .mini-btn {
+    min-height: 40px;
   }
 }
 

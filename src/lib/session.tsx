@@ -82,6 +82,8 @@ interface SessionValue {
   loadError: string | null;
   dataSource: "supabase" | "seed";
   refreshing: boolean;
+  /** True while a clinical save is in flight (blocks double-submit). */
+  actionBusy: boolean;
   authMode: AuthMode;
   authStatus: AuthStatus;
   user: User | null;
@@ -201,6 +203,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [dataSource, setDataSource] = useState<"supabase" | "seed">(getDataSource());
   const [refreshing, setRefreshing] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [authStatus, setAuthStatus] = useState<AuthStatus>(
     authMode === "seed" ? "seed" : "loading",
@@ -369,8 +372,27 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     async (email: string, password: string) => {
       const sb = createSupabaseBrowserClient();
       if (!sb) return { error: "Supabase is not configured" };
-      const { error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) return { error: error.message };
+      const trimmed = email.trim();
+      if (!trimmed || !password) {
+        return { error: "Email and password are required." };
+      }
+      const { error } = await sb.auth.signInWithPassword({
+        email: trimmed,
+        password,
+      });
+      if (error) {
+        const msg = error.message.toLowerCase();
+        if (msg.includes("invalid login") || msg.includes("invalid credentials")) {
+          return { error: "Invalid email or password. Check your credentials and try again." };
+        }
+        if (msg.includes("email not confirmed")) {
+          return { error: "Email not confirmed. Confirm the account in Supabase Auth, or disable confirm-email for demos." };
+        }
+        if (msg.includes("network") || msg.includes("fetch")) {
+          return { error: "Network error reaching Supabase. Check your connection and try again." };
+        }
+        return { error: error.message };
+      }
       // onAuthStateChange will resolve staff + ward data
       return { error: null };
     },
@@ -388,6 +410,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const recordVitals = useCallback(
     async (patientId: string, vitals: Vitals, note?: string) => {
+      if (
+        !Number.isFinite(vitals.oxygen) ||
+        !Number.isFinite(vitals.heartRate) ||
+        !Number.isFinite(vitals.temperature) ||
+        !Number.isFinite(vitals.respiratory)
+      ) {
+        setToast("Vitals must be valid numbers.");
+        return { abnormalCount: 0 };
+      }
       const abnormalCount = evaluateVitals(vitals).length;
       const result = applyRecordVitals(dataRef.current, {
         patientId,
@@ -399,7 +430,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
       dataRef.current = result.data;
       setData(result.data);
-
+      setActionBusy(true);
       try {
         await persistRecordVitals({
           patient: result.patient,
@@ -418,6 +449,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         const message = err instanceof Error ? err.message : "Save failed";
         setToast(`Saved locally only — Supabase error: ${message}`);
         if (dataSource === "supabase") void reload();
+      } finally {
+        setActionBusy(false);
       }
 
       return { abnormalCount };
@@ -433,7 +466,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       dataRef.current = result.data;
       setData(result.data);
       const label = status === "acknowledged" ? "acknowledged" : "resolved";
-
+      setActionBusy(true);
       try {
         await persistAlertStatus({
           alert: result.alert,
@@ -448,6 +481,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         const message = err instanceof Error ? err.message : "Save failed";
         setToast(`Local only — Supabase error: ${message}`);
         if (dataSource === "supabase") void reload();
+      } finally {
+        setActionBusy(false);
       }
     },
     [staff.id, staff.name, dataSource, reload],
@@ -469,6 +504,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (!result) return;
       dataRef.current = result.data;
       setData(result.data);
+      setActionBusy(true);
       try {
         await persistCompleteTask({
           task: result.task,
@@ -481,6 +517,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         const message = err instanceof Error ? err.message : "Save failed";
         setToast(`Local only — Supabase error: ${message}`);
         if (dataSource === "supabase") void reload();
+      } finally {
+        setActionBusy(false);
       }
     },
     [staff.id, staff.name, dataSource, reload],
@@ -500,6 +538,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (!result) return { error: "Could not create task." };
       dataRef.current = result.data;
       setData(result.data);
+      setActionBusy(true);
       try {
         await persistCreateTask({
           task: result.task,
@@ -514,6 +553,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setToast(`Local only — Supabase error: ${message}`);
         if (dataSource === "supabase") void reload();
         return { error: message };
+      } finally {
+        setActionBusy(false);
       }
     },
     [staff.id, staff.name, dataSource, reload],
@@ -529,6 +570,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (!result) return;
       dataRef.current = result.data;
       setData(result.data);
+      setActionBusy(true);
       try {
         await persistAdministerMedication({
           medication: result.medication,
@@ -543,6 +585,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         const message = err instanceof Error ? err.message : "Save failed";
         setToast(`Local only — Supabase error: ${message}`);
         if (dataSource === "supabase") void reload();
+      } finally {
+        setActionBusy(false);
       }
     },
     [staff.id, staff.name, dataSource, reload],
@@ -562,6 +606,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (!result) return { error: "Could not order medication." };
       dataRef.current = result.data;
       setData(result.data);
+      setActionBusy(true);
       try {
         await persistOrderMedication({
           medication: result.medication,
@@ -578,6 +623,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setToast(`Local only — Supabase error: ${message}`);
         if (dataSource === "supabase") void reload();
         return { error: message };
+      } finally {
+        setActionBusy(false);
       }
     },
     [staff.id, staff.name, dataSource, reload],
@@ -592,6 +639,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (!result) return { error: "Could not add note." };
       dataRef.current = result.data;
       setData(result.data);
+      setActionBusy(true);
       try {
         await persistAddNote({
           note: result.note,
@@ -606,6 +654,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setToast(`Local only — Supabase error: ${message}`);
         if (dataSource === "supabase") void reload();
         return { error: message };
+      } finally {
+        setActionBusy(false);
       }
     },
     [staff.id, staff.name, dataSource, reload],
@@ -887,6 +937,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       loadError,
       dataSource,
       refreshing,
+      actionBusy,
       authMode,
       authStatus,
       user,
@@ -920,6 +971,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       loadError,
       dataSource,
       refreshing,
+      actionBusy,
       authMode,
       authStatus,
       user,

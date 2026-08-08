@@ -9,8 +9,7 @@ function parseBp(bp: string): { systolic: string; diastolic: string } {
 }
 
 /**
- * Side drawer form for recording vitals. Mirrors the v1 prototype drawer so
- * the demo workflow feels familiar. Submit returns a fully typed Vitals object.
+ * Side drawer form for recording vitals with validation and save locking.
  */
 export function RecordVitalsDrawer({
   patient,
@@ -19,7 +18,7 @@ export function RecordVitalsDrawer({
 }: {
   patient: Patient;
   onClose: () => void;
-  onSubmit: (vitals: Vitals, note: string) => void;
+  onSubmit: (vitals: Vitals, note: string) => void | Promise<void>;
 }) {
   const titleId = useId();
   const { systolic: initSys, diastolic: initDia } = parseBp(patient.vitals.bp);
@@ -31,31 +30,66 @@ export function RecordVitalsDrawer({
   const [temperature, setTemperature] = useState(String(patient.vitals.temperature));
   const [respiratory, setRespiratory] = useState(String(patient.vitals.respiratory));
   const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && !saving) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, saving]);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    onSubmit(
-      {
-        oxygen: Number(oxygen),
-        heartRate: Number(heartRate),
-        bp: `${systolic}/${diastolic}`,
-        temperature: Number(temperature),
-        respiratory: Number(respiratory),
-      },
-      note.trim(),
-    );
+    setError(null);
+    const vitals: Vitals = {
+      oxygen: Number(oxygen),
+      heartRate: Number(heartRate),
+      bp: `${systolic}/${diastolic}`,
+      temperature: Number(temperature),
+      respiratory: Number(respiratory),
+    };
+    const sys = Number(systolic);
+    const dia = Number(diastolic);
+    if (
+      !Number.isFinite(vitals.oxygen) ||
+      !Number.isFinite(vitals.heartRate) ||
+      !Number.isFinite(vitals.temperature) ||
+      !Number.isFinite(vitals.respiratory) ||
+      !Number.isFinite(sys) ||
+      !Number.isFinite(dia)
+    ) {
+      setError("Enter valid numbers for all vital signs.");
+      return;
+    }
+    if (vitals.oxygen < 50 || vitals.oxygen > 100) {
+      setError("Oxygen saturation must be between 50 and 100%.");
+      return;
+    }
+    if (vitals.heartRate < 20 || vitals.heartRate > 220) {
+      setError("Heart rate must be between 20 and 220 bpm.");
+      return;
+    }
+    if (vitals.temperature < 30 || vitals.temperature > 45) {
+      setError("Temperature must be between 30 and 45 °C.");
+      return;
+    }
+    if (vitals.respiratory < 4 || vitals.respiratory > 60) {
+      setError("Respiratory rate must be between 4 and 60 /min.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSubmit(vitals, note.trim());
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
-    <div className="overlay" role="presentation" onClick={onClose}>
+    <div className="overlay" role="presentation" onClick={saving ? undefined : onClose}>
       <aside
         className="drawer"
         role="dialog"
@@ -69,12 +103,18 @@ export function RecordVitalsDrawer({
             <h2 id={titleId}>Record vitals · {patient.name}</h2>
             <p className="muted">Values are checked against demonstration thresholds.</p>
           </div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={onClose}
+            aria-label="Close"
+            disabled={saving}
+          >
             ×
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={(e) => void handleSubmit(e)}>
           <div className="form-grid">
             <div className="field">
               <label htmlFor="oxygen">Oxygen saturation (%)</label>
@@ -87,6 +127,7 @@ export function RecordVitalsDrawer({
                 value={oxygen}
                 onChange={(e) => setOxygen(e.target.value)}
                 required
+                disabled={saving}
               />
             </div>
             <div className="field">
@@ -100,6 +141,7 @@ export function RecordVitalsDrawer({
                 value={heartRate}
                 onChange={(e) => setHeartRate(e.target.value)}
                 required
+                disabled={saving}
               />
             </div>
             <div className="field">
@@ -113,6 +155,7 @@ export function RecordVitalsDrawer({
                 value={systolic}
                 onChange={(e) => setSystolic(e.target.value)}
                 required
+                disabled={saving}
               />
             </div>
             <div className="field">
@@ -126,6 +169,7 @@ export function RecordVitalsDrawer({
                 value={diastolic}
                 onChange={(e) => setDiastolic(e.target.value)}
                 required
+                disabled={saving}
               />
             </div>
             <div className="field">
@@ -140,6 +184,7 @@ export function RecordVitalsDrawer({
                 value={temperature}
                 onChange={(e) => setTemperature(e.target.value)}
                 required
+                disabled={saving}
               />
             </div>
             <div className="field">
@@ -153,6 +198,7 @@ export function RecordVitalsDrawer({
                 value={respiratory}
                 onChange={(e) => setRespiratory(e.target.value)}
                 required
+                disabled={saving}
               />
             </div>
             <div className="field full">
@@ -164,15 +210,21 @@ export function RecordVitalsDrawer({
                 placeholder="e.g. Short of breath on mild exertion"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
+                disabled={saving}
               />
             </div>
           </div>
+          {error ? (
+            <div className="login-error" role="alert" style={{ marginTop: 14 }}>
+              {error}
+            </div>
+          ) : null}
           <div className="drawer-actions">
-            <button type="button" className="btn" onClick={onClose}>
+            <button type="button" className="btn" onClick={onClose} disabled={saving}>
               Cancel
             </button>
-            <button type="submit" className="btn primary">
-              Record vitals
+            <button type="submit" className="btn primary" disabled={saving}>
+              {saving ? "Saving…" : "Record vitals"}
             </button>
           </div>
         </form>

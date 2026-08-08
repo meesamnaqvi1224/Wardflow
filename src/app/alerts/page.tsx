@@ -6,7 +6,7 @@ import { AlertRow } from "@/components/alerts/AlertRow";
 import { Badge } from "@/components/Badge";
 
 export default function AlertsPage() {
-  const { data, staff, acknowledgeAlert, resolveAlert } = useSession();
+  const { data, staff, acknowledgeAlert, resolveAlert, actionBusy } = useSession();
   const canManage = staff.role === "doctor" || staff.role === "nurse";
 
   const alerts = [...data.alerts].sort((a, b) => {
@@ -46,6 +46,7 @@ export default function AlertsPage() {
               </div>
               <AlertRow
                 alert={a}
+                busy={actionBusy}
                 onAcknowledge={canManage && a.status === "active" ? acknowledgeAlert : undefined}
                 onResolve={canManage && a.status !== "resolved" ? resolveAlert : undefined}
               />

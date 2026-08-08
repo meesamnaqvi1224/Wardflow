@@ -7,16 +7,14 @@ function statusTone(status: Medication["status"]): PatientStatus | "neutral" {
   return "neutral";
 }
 
-/**
- * A single medication order. "Record administration" is wired via the optional
- * callback in Phase 5 (nurse-only); omitted for the read-only Phase 2 view.
- */
 export function MedicationRow({
   medication,
   onAdminister,
+  busy = false,
 }: {
   medication: Medication;
   onAdminister?: (id: string) => void;
+  busy?: boolean;
 }) {
   return (
     <div className="med-row">
@@ -31,8 +29,13 @@ export function MedicationRow({
       </div>
       {onAdminister && medication.status !== "administered" ? (
         <div className="row-actions">
-          <button className="mini-btn" onClick={() => onAdminister(medication.id)}>
-            Record administration
+          <button
+            type="button"
+            className="mini-btn"
+            disabled={busy}
+            onClick={() => onAdminister(medication.id)}
+          >
+            {busy ? "Saving…" : "Record administration"}
           </button>
         </div>
       ) : null}

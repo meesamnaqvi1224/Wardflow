@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "@/lib/session";
 import { Toast } from "@/components/Toast";
 import { DemoBanner } from "./DemoBanner";
@@ -13,6 +13,7 @@ import { Topbar } from "./Topbar";
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const {
     toast,
@@ -26,6 +27,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     authStatus,
     authError,
   } = useSession();
+
+  // Close mobile nav on route change
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
+
+  // Session expired / signed out while browsing → login
+  useEffect(() => {
+    if (pathname.startsWith("/login")) return;
+    if (authMode === "auth" && authStatus === "signed_out") {
+      router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+    }
+  }, [authMode, authStatus, pathname, router]);
 
   if (pathname.startsWith("/login")) {
     return (
@@ -46,22 +60,44 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <>
       <DemoBanner />
       <div className="shell">
+        {mobileNavOpen ? (
+          <button
+            type="button"
+            className="nav-backdrop"
+            aria-label="Close menu"
+            onClick={() => setMobileNavOpen(false)}
+          />
+        ) : null}
         <Sidebar open={mobileNavOpen} onNavigate={() => setMobileNavOpen(false)} />
         <main className="main">
           <Topbar onMenu={() => setMobileNavOpen((v) => !v)} />
           <div className="content">
             {blockingAuth ? (
-              <div className="empty">Checking session…</div>
+              <div className="empty loading-block">
+                <div className="spinner" aria-hidden="true" />
+                Checking session…
+              </div>
             ) : unlinked ? (
               <div className="clinical-callout">
                 <strong>Account not linked to staff.</strong>
                 <p className="muted" style={{ margin: "8px 0 0" }}>
                   {authError ??
-                    "Sign in with a demo account that has staff.auth_user_id set."}
+                    "Your login is not linked to a staff profile. Contact a ward admin to set staff.auth_user_id."}
                 </p>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ marginTop: 12 }}
+                  onClick={() => router.replace("/login")}
+                >
+                  Back to sign in
+                </button>
               </div>
             ) : loadState === "loading" ? (
-              <div className="empty">Loading ward data…</div>
+              <div className="empty loading-block">
+                <div className="spinner" aria-hidden="true" />
+                Loading ward data…
+              </div>
             ) : (
               <>
                 {loadError && dataSource === "seed" ? (
@@ -73,7 +109,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       onClick={() => void reload()}
                       disabled={refreshing}
                     >
-                      Retry
+                      {refreshing ? "Retrying…" : "Retry"}
                     </button>
                   </div>
                 ) : null}

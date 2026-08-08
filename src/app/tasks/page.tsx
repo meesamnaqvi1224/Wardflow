@@ -8,7 +8,7 @@ import { TaskRow } from "@/components/tasks/TaskRow";
 import { CreateTaskDrawer } from "@/components/tasks/CreateTaskDrawer";
 
 export default function TasksPage() {
-  const { staff, data, completeTask, createTask } = useSession();
+  const { staff, data, completeTask, createTask, actionBusy } = useSession();
   const [createOpen, setCreateOpen] = useState(false);
   const [filter, setFilter] = useState<"open" | "all">("open");
 
@@ -82,6 +82,7 @@ export default function TasksPage() {
               </div>
               <TaskRow
                 task={task}
+                busy={actionBusy}
                 onComplete={
                   canComplete && task.status === "open"
                     ? (id) => void completeTask(id)

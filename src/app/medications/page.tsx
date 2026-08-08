@@ -8,7 +8,8 @@ import { MedicationRow } from "@/components/medications/MedicationRow";
 import { OrderMedicationDrawer } from "@/components/medications/OrderMedicationDrawer";
 
 export default function MedicationsPage() {
-  const { staff, data, administerMedication, orderMedication } = useSession();
+  const { staff, data, administerMedication, orderMedication, actionBusy } =
+    useSession();
   const [orderOpen, setOrderOpen] = useState(false);
   const [filter, setFilter] = useState<"active" | "all">("active");
 
@@ -79,6 +80,7 @@ export default function MedicationsPage() {
               </div>
               <MedicationRow
                 medication={med}
+                busy={actionBusy}
                 onAdminister={
                   canAdminister && med.status !== "administered"
                     ? (id) => void administerMedication(id)
