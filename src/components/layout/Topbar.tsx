@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useSession } from "@/lib/session";
 import { RoleSwitcher } from "@/components/RoleSwitcher";
 import { AuthUserMenu } from "@/components/AuthUserMenu";
+import { PatientSearch } from "@/components/layout/PatientSearch";
 
 /**
- * Top bar: mobile menu, search, data actions, and identity.
- * Avatar links to My profile for every role.
+ * Top bar: mobile menu, live patient search, data actions, and identity.
  */
 export function Topbar({ onMenu }: { onMenu: () => void }) {
   const { staff, resetDemo, reload, refreshing, dataSource, authMode } =
@@ -20,12 +20,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
       <button className="btn mobile-menu" onClick={onMenu} aria-label="Toggle navigation">
         Menu
       </button>
-      <input
-        className="search"
-        type="search"
-        placeholder="Search patients by name, room, or diagnosis..."
-        aria-label="Search patients"
-      />
+      <PatientSearch />
       <div className="top-spacer" />
       {dataSource === "supabase" ? (
         <button
@@ -49,7 +44,9 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
           Reset demo
         </button>
       ) : null}
-      {authMode === "auth" ? <AuthUserMenu /> : (
+      {authMode === "auth" ? (
+        <AuthUserMenu />
+      ) : (
         <>
           <RoleSwitcher />
           <Link href="/profile" className="btn">

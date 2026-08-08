@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useSession } from "@/lib/session";
 import { assignedPatients, bySeverity, wardSummary } from "@/lib/domain";
 import { StatCard } from "@/components/StatCard";
@@ -54,18 +55,26 @@ export default function DashboardPage() {
       </div>
 
       <div className="stats">
-        <StatCard label="Ward patients" value={summary.patients} note="Currently admitted" />
-        <StatCard
-          label="Active alerts"
-          value={summary.activeAlerts}
-          note={`${summary.urgentAlerts} urgent`}
-        />
-        <StatCard
-          label="Open tasks"
-          value={summary.openTasks}
-          note={`${summary.urgentTasks} urgent`}
-        />
-        <StatCard label="Medications due" value={summary.medicationsDue} note="Next 60 minutes" />
+        <Link href="/patients" className="stat-link">
+          <StatCard label="Ward patients" value={summary.patients} note="Currently admitted" />
+        </Link>
+        <Link href="/alerts" className="stat-link">
+          <StatCard
+            label="Active alerts"
+            value={summary.activeAlerts}
+            note={`${summary.urgentAlerts} urgent`}
+          />
+        </Link>
+        <Link href="/tasks" className="stat-link">
+          <StatCard
+            label="Open tasks"
+            value={summary.openTasks}
+            note={`${summary.urgentTasks} urgent`}
+          />
+        </Link>
+        <Link href="/medications" className="stat-link">
+          <StatCard label="Medications due" value={summary.medicationsDue} note="Next 60 minutes" />
+        </Link>
       </div>
 
       <section className="section">
@@ -74,9 +83,11 @@ export default function DashboardPage() {
           <span className="muted">{attention.length} patients</span>
         </div>
         <div className="attention-grid">
-          {attention.map((p) => (
-            <PatientCard key={p.id} patient={p} />
-          ))}
+          {attention.length ? (
+            attention.map((p) => <PatientCard key={p.id} patient={p} />)
+          ) : (
+            <div className="empty panel panel-pad">All patients are stable right now.</div>
+          )}
         </div>
       </section>
 
@@ -94,21 +105,35 @@ export default function DashboardPage() {
         <div>
           <div className="section-head">
             <h2>Tasks and medications due</h2>
+            <Link href="/tasks" className="text-link">
+              View tasks
+            </Link>
           </div>
           <div className="panel panel-pad">
-            {dueWork.map((row) => (
-              <div className="task-row" key={row.id}>
-                <div className="row-top">
-                  <div>
-                    <strong>{row.title}</strong>
-                    <div className="muted">
-                      {patientName(row.patientId)} · {row.meta}
+            {dueWork.length ? (
+              dueWork.map((row) => (
+                <Link
+                  key={row.id}
+                  href={`/patients/${row.patientId}`}
+                  className="task-row task-row-link"
+                >
+                  <div className="row-top">
+                    <div>
+                      <strong>{row.title}</strong>
+                      <div className="muted">
+                        {patientName(row.patientId)} · {row.meta}
+                      </div>
                     </div>
+                    <Badge
+                      tone={row.tone === "routine" ? "neutral" : row.tone}
+                      label={row.tone}
+                    />
                   </div>
-                  <Badge tone={row.tone === "routine" ? "neutral" : row.tone} label={row.tone} />
-                </div>
-              </div>
-            ))}
+                </Link>
+              ))
+            ) : (
+              <div className="empty">Nothing due right now.</div>
+            )}
           </div>
         </div>
         <div>
@@ -124,7 +149,7 @@ export default function DashboardPage() {
       <section className="section">
         <div className="section-head">
           <h2>All ward patients</h2>
-          <span className="muted">Searchable from the top bar</span>
+          <span className="muted">Search from the top bar by name, room, or diagnosis</span>
         </div>
         <PatientTable patients={allPatients} alerts={data.alerts} tasks={data.tasks} />
       </section>

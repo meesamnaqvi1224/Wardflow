@@ -160,7 +160,14 @@ a {
   background: rgba(255, 255, 255, 0.9);
   border-bottom: 1px solid var(--line);
 }
+.patient-search {
+  position: relative;
+  max-width: 410px;
+  flex: 1;
+  min-width: 0;
+}
 .search {
+  width: 100%;
   max-width: 410px;
   flex: 1;
   padding: 10px 14px;
@@ -170,9 +177,67 @@ a {
   color: var(--ink);
   outline: none;
 }
+.patient-search .search {
+  max-width: none;
+}
 .search:focus {
   border-color: var(--blue);
   box-shadow: 0 0 0 3px var(--blue-soft);
+}
+.patient-search-results {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 6px;
+}
+.patient-search-item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--ink);
+}
+.patient-search-item:hover,
+.patient-search-item.active {
+  background: var(--blue-soft);
+}
+.patient-search-empty {
+  padding: 14px 12px;
+  font-size: 13px;
+}
+.stat-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 12px;
+}
+.stat-link:hover .stat {
+  border-color: #9cb3b9;
+}
+.task-row-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 8px;
+  margin: 0 -6px;
+  padding: 0 6px;
+}
+.task-row-link:hover {
+  background: var(--paper);
 }
 .top-spacer {
   flex: 1;

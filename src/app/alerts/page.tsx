@@ -23,8 +23,8 @@ export default function AlertsPage() {
           <p className="eyebrow">Ward monitoring</p>
           <h1>Alerts</h1>
           <p className="muted">
-            Clinical alerts raised from abnormal vitals. Switch to a doctor or nurse role to
-            acknowledge or resolve.
+            Clinical alerts raised from abnormal vitals. Doctors and nurses can acknowledge
+            or resolve.
           </p>
         </div>
       </div>
