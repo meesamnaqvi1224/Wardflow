@@ -1,11 +1,14 @@
 import type {
   Alert,
   AlertSeverity,
+  Medication,
+  MedicationStatus,
   Patient,
   PatientStatus,
   Role,
   StaffMember,
   Task,
+  TaskPriority,
   TimelineEvent,
   Vitals,
   WardData,
@@ -243,5 +246,166 @@ export function applyAlertStatus(
     newTimeline,
     patientId: existing.patientId,
     patientStatus,
+  };
+}
+
+export interface TaskMutationResult {
+  data: WardData;
+  task: Task;
+  newTimeline: TimelineEvent;
+}
+
+export interface MedicationMutationResult {
+  data: WardData;
+  medication: Medication;
+  newTimeline: TimelineEvent;
+}
+
+/** Mark a care task complete and append a timeline event. */
+export function applyCompleteTask(
+  data: WardData,
+  taskId: string,
+  staffName: string,
+): TaskMutationResult | null {
+  const existing = data.tasks.find((t) => t.id === taskId);
+  if (!existing || existing.status === "completed") return null;
+
+  const task: Task = { ...existing, status: "completed" };
+  const tasks = data.tasks.map((t) => (t.id === taskId ? task : t));
+  const newTimeline: TimelineEvent = {
+    id: newId("e"),
+    patientId: existing.patientId,
+    summary: `${staffName} completed task: ${existing.title}`,
+    at: "Just now",
+    type: "task",
+  };
+
+  return {
+    data: {
+      ...data,
+      tasks,
+      timeline: [newTimeline, ...data.timeline],
+    },
+    task,
+    newTimeline,
+  };
+}
+
+/** Create a new open care task. */
+export function applyCreateTask(
+  data: WardData,
+  input: {
+    patientId: string;
+    title: string;
+    due: string;
+    priority: TaskPriority;
+    staffName: string;
+  },
+): TaskMutationResult | null {
+  if (!data.patients.some((p) => p.id === input.patientId)) return null;
+  const title = input.title.trim();
+  const due = input.due.trim() || "Next shift";
+  if (!title) return null;
+
+  const task: Task = {
+    id: newId("t"),
+    patientId: input.patientId,
+    title,
+    due,
+    priority: input.priority,
+    status: "open",
+  };
+  const newTimeline: TimelineEvent = {
+    id: newId("e"),
+    patientId: input.patientId,
+    summary: `${input.staffName} created task: ${title}`,
+    at: "Just now",
+    type: "task",
+  };
+
+  return {
+    data: {
+      ...data,
+      tasks: [task, ...data.tasks],
+      timeline: [newTimeline, ...data.timeline],
+    },
+    task,
+    newTimeline,
+  };
+}
+
+/** Record medication administration (due/upcoming → administered). */
+export function applyAdministerMedication(
+  data: WardData,
+  medicationId: string,
+  staffName: string,
+): MedicationMutationResult | null {
+  const existing = data.medications.find((m) => m.id === medicationId);
+  if (!existing || existing.status === "administered") return null;
+
+  const medication: Medication = { ...existing, status: "administered" as MedicationStatus };
+  const medications = data.medications.map((m) =>
+    m.id === medicationId ? medication : m,
+  );
+  const newTimeline: TimelineEvent = {
+    id: newId("e"),
+    patientId: existing.patientId,
+    summary: `${staffName} administered ${existing.name} (${existing.dose})`,
+    at: "Just now",
+    type: "medication",
+  };
+
+  return {
+    data: {
+      ...data,
+      medications,
+      timeline: [newTimeline, ...data.timeline],
+    },
+    medication,
+    newTimeline,
+  };
+}
+
+/** Doctor orders a new medication. */
+export function applyOrderMedication(
+  data: WardData,
+  input: {
+    patientId: string;
+    name: string;
+    dose: string;
+    due: string;
+    staffName: string;
+  },
+): MedicationMutationResult | null {
+  if (!data.patients.some((p) => p.id === input.patientId)) return null;
+  const name = input.name.trim();
+  const dose = input.dose.trim();
+  const due = input.due.trim() || "As scheduled";
+  if (!name || !dose) return null;
+
+  const medication: Medication = {
+    id: newId("m"),
+    patientId: input.patientId,
+    name,
+    dose,
+    due,
+    status: "due",
+  };
+  const newTimeline: TimelineEvent = {
+    id: newId("e"),
+    patientId: input.patientId,
+    summary: `${input.staffName} ordered ${name} ${dose}`,
+    at: "Just now",
+    type: "medication",
+  };
+
+  return {
+    data: {
+      ...data,
+      medications: [medication, ...data.medications],
+      timeline: [newTimeline, ...data.timeline],
+    },
+    medication,
+    newTimeline,
   };
 }

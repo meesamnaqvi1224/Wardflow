@@ -10,13 +10,32 @@ import {
   useState,
 } from "react";
 import type { User } from "@supabase/supabase-js";
-import type { Patient, PatientStatus, StaffMember, Vitals, WardData } from "./types";
+import type {
+  Patient,
+  PatientStatus,
+  StaffMember,
+  TaskPriority,
+  Vitals,
+  WardData,
+} from "./types";
 import { SEED, STAFF } from "./seed";
-import { applyAlertStatus, applyRecordVitals, evaluateVitals } from "./domain";
+import {
+  applyAdministerMedication,
+  applyAlertStatus,
+  applyCompleteTask,
+  applyCreateTask,
+  applyOrderMedication,
+  applyRecordVitals,
+  evaluateVitals,
+} from "./domain";
 import {
   getDataSource,
   loadWardBundle,
+  persistAdministerMedication,
   persistAlertStatus,
+  persistCompleteTask,
+  persistCreateTask,
+  persistOrderMedication,
   persistPatientProfile,
   persistRecordVitals,
   persistStaffProfile,
@@ -87,6 +106,20 @@ interface SessionValue {
   ) => Promise<{ error: string | null }>;
   acknowledgeAlert: (alertId: string) => Promise<void>;
   resolveAlert: (alertId: string) => Promise<void>;
+  completeTask: (taskId: string) => Promise<void>;
+  createTask: (input: {
+    patientId: string;
+    title: string;
+    due: string;
+    priority: TaskPriority;
+  }) => Promise<{ error: string | null }>;
+  administerMedication: (medicationId: string) => Promise<void>;
+  orderMedication: (input: {
+    patientId: string;
+    name: string;
+    dose: string;
+    due: string;
+  }) => Promise<{ error: string | null }>;
   resetDemo: () => Promise<void>;
   reload: () => Promise<void>;
 }
@@ -396,6 +429,126 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [updateAlert],
   );
 
+  const completeTask = useCallback(
+    async (taskId: string) => {
+      const result = applyCompleteTask(dataRef.current, taskId, staff.name);
+      if (!result) return;
+      dataRef.current = result.data;
+      setData(result.data);
+      try {
+        await persistCompleteTask({
+          task: result.task,
+          newTimeline: result.newTimeline,
+          staffId: staff.id,
+          staffName: staff.name,
+        });
+        setToast(`Task completed${dataSource === "supabase" ? " (saved)" : ""}`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Save failed";
+        setToast(`Local only — Supabase error: ${message}`);
+        if (dataSource === "supabase") void reload();
+      }
+    },
+    [staff.id, staff.name, dataSource, reload],
+  );
+
+  const createTask = useCallback(
+    async (input: {
+      patientId: string;
+      title: string;
+      due: string;
+      priority: TaskPriority;
+    }) => {
+      const result = applyCreateTask(dataRef.current, {
+        ...input,
+        staffName: staff.name,
+      });
+      if (!result) return { error: "Could not create task." };
+      dataRef.current = result.data;
+      setData(result.data);
+      try {
+        await persistCreateTask({
+          task: result.task,
+          newTimeline: result.newTimeline,
+          staffId: staff.id,
+          staffName: staff.name,
+        });
+        setToast(`Task created${dataSource === "supabase" ? " (saved)" : ""}`);
+        return { error: null };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Save failed";
+        setToast(`Local only — Supabase error: ${message}`);
+        if (dataSource === "supabase") void reload();
+        return { error: message };
+      }
+    },
+    [staff.id, staff.name, dataSource, reload],
+  );
+
+  const administerMedication = useCallback(
+    async (medicationId: string) => {
+      const result = applyAdministerMedication(
+        dataRef.current,
+        medicationId,
+        staff.name,
+      );
+      if (!result) return;
+      dataRef.current = result.data;
+      setData(result.data);
+      try {
+        await persistAdministerMedication({
+          medication: result.medication,
+          newTimeline: result.newTimeline,
+          staffId: staff.id,
+          staffName: staff.name,
+        });
+        setToast(
+          `Medication recorded${dataSource === "supabase" ? " (saved)" : ""}`,
+        );
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Save failed";
+        setToast(`Local only — Supabase error: ${message}`);
+        if (dataSource === "supabase") void reload();
+      }
+    },
+    [staff.id, staff.name, dataSource, reload],
+  );
+
+  const orderMedication = useCallback(
+    async (input: {
+      patientId: string;
+      name: string;
+      dose: string;
+      due: string;
+    }) => {
+      const result = applyOrderMedication(dataRef.current, {
+        ...input,
+        staffName: staff.name,
+      });
+      if (!result) return { error: "Could not order medication." };
+      dataRef.current = result.data;
+      setData(result.data);
+      try {
+        await persistOrderMedication({
+          medication: result.medication,
+          newTimeline: result.newTimeline,
+          staffId: staff.id,
+          staffName: staff.name,
+        });
+        setToast(
+          `Medication ordered${dataSource === "supabase" ? " (saved)" : ""}`,
+        );
+        return { error: null };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Save failed";
+        setToast(`Local only — Supabase error: ${message}`);
+        if (dataSource === "supabase") void reload();
+        return { error: message };
+      }
+    },
+    [staff.id, staff.name, dataSource, reload],
+  );
+
   const updateStaffProfile = useCallback(
     async (input: { name: string; detail: string; initials: string }) => {
       const name = input.name.trim();
@@ -556,6 +709,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       updatePatientProfile,
       acknowledgeAlert,
       resolveAlert,
+      completeTask,
+      createTask,
+      administerMedication,
+      orderMedication,
       resetDemo,
       reload,
     }),
@@ -580,6 +737,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       updatePatientProfile,
       acknowledgeAlert,
       resolveAlert,
+      completeTask,
+      createTask,
+      administerMedication,
+      orderMedication,
       resetDemo,
       reload,
     ],

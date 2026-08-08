@@ -10,7 +10,9 @@ import { RecordVitalsDrawer } from "@/components/vitals/RecordVitalsDrawer";
 import { EditPatientDrawer } from "@/components/patient/EditPatientDrawer";
 import { AlertRow } from "@/components/alerts/AlertRow";
 import { TaskRow } from "@/components/tasks/TaskRow";
+import { CreateTaskDrawer } from "@/components/tasks/CreateTaskDrawer";
 import { MedicationRow } from "@/components/medications/MedicationRow";
+import { OrderMedicationDrawer } from "@/components/medications/OrderMedicationDrawer";
 import { NoteRow } from "@/components/notes/NoteRow";
 import { Timeline } from "@/components/Timeline";
 
@@ -19,7 +21,7 @@ type Tab = (typeof TABS)[number];
 
 /**
  * Patient detail view with the six-tab layout from v1.
- * Profile edit + vitals are live; notes / tasks / meds expand next.
+ * Vitals, profile, tasks, and medications are interactive.
  */
 export function PatientDetail({ patient }: { patient: Patient }) {
   const {
@@ -30,11 +32,17 @@ export function PatientDetail({ patient }: { patient: Patient }) {
     updatePatientProfile,
     acknowledgeAlert,
     resolveAlert,
+    completeTask,
+    createTask,
+    administerMedication,
+    orderMedication,
   } = useSession();
   const [tab, setTab] = useState<Tab>("Overview");
   const [notice, setNotice] = useState<string | null>(null);
   const [vitalsOpen, setVitalsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [taskOpen, setTaskOpen] = useState(false);
+  const [medOpen, setMedOpen] = useState(false);
 
   // Re-read patient from session so vitals updates re-render after recording.
   const live = data.patients.find((p) => p.id === patient.id) ?? patient;
@@ -50,6 +58,7 @@ export function PatientDetail({ patient }: { patient: Patient }) {
     staff.role === "doctor" || staff.role === "nurse" || staff.role === "admin";
   const canEditAssignments = staff.role === "admin" || staff.role === "doctor";
   const canManageAlerts = staff.role === "doctor" || staff.role === "nurse";
+  const canAdminister = staff.role === "nurse" || staff.role === "doctor";
   const futureAction = (label: string) => () =>
     setNotice(`"${label}" is planned for a later module.`);
 
@@ -107,13 +116,25 @@ export function PatientDetail({ patient }: { patient: Patient }) {
               <button className="btn" onClick={futureAction("Add note")}>
                 Add note
               </button>
-              <button className="btn" onClick={futureAction("Create task")}>
+              <button
+                className="btn"
+                onClick={() => {
+                  setNotice(null);
+                  setTaskOpen(true);
+                }}
+              >
                 Create task
               </button>
             </>
           ) : null}
           {staff.role === "doctor" ? (
-            <button className="btn" onClick={futureAction("Order medication")}>
+            <button
+              className="btn"
+              onClick={() => {
+                setNotice(null);
+                setMedOpen(true);
+              }}
+            >
               Order medication
             </button>
           ) : null}
@@ -157,7 +178,13 @@ export function PatientDetail({ patient }: { patient: Patient }) {
                 <div className="empty">No active alerts</div>
               )}
               {tasks.map((t) => (
-                <TaskRow key={t.id} task={t} />
+                <TaskRow
+                  key={t.id}
+                  task={t}
+                  onComplete={
+                    isClinician ? (id) => void completeTask(id) : undefined
+                  }
+                />
               ))}
             </div>
           </div>
@@ -165,7 +192,15 @@ export function PatientDetail({ patient }: { patient: Patient }) {
             <div className="panel panel-pad">
               <h2>Current medications</h2>
               {meds.length ? (
-                meds.map((m) => <MedicationRow key={m.id} medication={m} />)
+                meds.map((m) => (
+                  <MedicationRow
+                    key={m.id}
+                    medication={m}
+                    onAdminister={
+                      canAdminister ? (id) => void administerMedication(id) : undefined
+                    }
+                  />
+                ))
               ) : (
                 <div className="empty">No active medications</div>
               )}
@@ -200,9 +235,22 @@ export function PatientDetail({ patient }: { patient: Patient }) {
         <div className="panel panel-pad">
           <div className="section-head">
             <h2>Medication orders</h2>
+            {staff.role === "doctor" ? (
+              <button type="button" className="btn primary" onClick={() => setMedOpen(true)}>
+                Order medication
+              </button>
+            ) : null}
           </div>
           {meds.length ? (
-            meds.map((m) => <MedicationRow key={m.id} medication={m} />)
+            meds.map((m) => (
+              <MedicationRow
+                key={m.id}
+                medication={m}
+                onAdminister={
+                  canAdminister ? (id) => void administerMedication(id) : undefined
+                }
+              />
+            ))
           ) : (
             <div className="empty">No active medications</div>
           )}
@@ -226,9 +274,22 @@ export function PatientDetail({ patient }: { patient: Patient }) {
         <div className="panel panel-pad">
           <div className="section-head">
             <h2>Care tasks</h2>
+            {isClinician ? (
+              <button type="button" className="btn primary" onClick={() => setTaskOpen(true)}>
+                Create task
+              </button>
+            ) : null}
           </div>
           {tasks.length ? (
-            tasks.map((t) => <TaskRow key={t.id} task={t} />)
+            tasks.map((t) => (
+              <TaskRow
+                key={t.id}
+                task={t}
+                onComplete={
+                  isClinician ? (id) => void completeTask(id) : undefined
+                }
+              />
+            ))
           ) : (
             <div className="empty">No open tasks.</div>
           )}
@@ -260,6 +321,32 @@ export function PatientDetail({ patient }: { patient: Patient }) {
             const result = await updatePatientProfile(live.id, input);
             if (result.error) throw new Error(result.error);
             setNotice(null);
+          }}
+        />
+      ) : null}
+
+      {taskOpen ? (
+        <CreateTaskDrawer
+          patients={[live]}
+          defaultPatientId={live.id}
+          onClose={() => setTaskOpen(false)}
+          onSubmit={async (input) => {
+            const result = await createTask(input);
+            if (!result.error) setTab("Tasks");
+            return result;
+          }}
+        />
+      ) : null}
+
+      {medOpen ? (
+        <OrderMedicationDrawer
+          patients={[live]}
+          defaultPatientId={live.id}
+          onClose={() => setMedOpen(false)}
+          onSubmit={async (input) => {
+            const result = await orderMedication(input);
+            if (!result.error) setTab("Medications");
+            return result;
           }}
         />
       ) : null}

@@ -684,6 +684,25 @@ tbody tr.clickable:hover {
   display: flex;
   gap: 7px;
 }
+.filter-pills {
+  display: flex;
+  gap: 6px;
+}
+.mini-btn.active-filter {
+  background: var(--blue-soft);
+  border-color: var(--blue);
+  color: var(--blue);
+}
+.list-item-block {
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.list-item-block:last-child {
+  border-bottom: 0;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
 .mini-btn {
   border: 1px solid var(--line);
   background: white;

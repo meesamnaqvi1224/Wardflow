@@ -1,9 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Alert,
+  Medication,
   Patient,
   PatientStatus,
   StaffMember,
+  Task,
   TimelineEvent,
   Vitals,
   WardData,
@@ -230,6 +232,163 @@ export async function persistRecordVitals(args: {
       note: args.note ?? null,
       alert_id: args.newAlert?.id ?? null,
     },
+  });
+}
+
+export async function persistCompleteTask(args: {
+  task: Task;
+  newTimeline: TimelineEvent;
+  staffId: string;
+  staffName: string;
+}): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  const sb = requireClient();
+  const now = new Date().toISOString();
+
+  const { error: taskError } = await sb
+    .from("tasks")
+    .update({ status: args.task.status })
+    .eq("id", args.task.id);
+  if (taskError) throw new Error(taskError.message);
+
+  const { error: timelineError } = await sb.from("timeline_events").insert({
+    id: args.newTimeline.id,
+    patient_id: args.newTimeline.patientId,
+    summary: args.newTimeline.summary,
+    event_type: args.newTimeline.type,
+    created_at: now,
+  });
+  if (timelineError) throw new Error(timelineError.message);
+
+  await sb.from("audit_events").insert({
+    actor_id: args.staffId,
+    actor_name: args.staffName,
+    action: "complete_task",
+    entity_type: "task",
+    entity_id: args.task.id,
+    patient_id: args.task.patientId,
+    detail: { title: args.task.title },
+  });
+}
+
+export async function persistCreateTask(args: {
+  task: Task;
+  newTimeline: TimelineEvent;
+  staffId: string;
+  staffName: string;
+}): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  const sb = requireClient();
+  const now = new Date().toISOString();
+  const t = args.task;
+
+  const { error: taskError } = await sb.from("tasks").insert({
+    id: t.id,
+    patient_id: t.patientId,
+    title: t.title,
+    due_label: t.due,
+    priority: t.priority,
+    status: t.status,
+    created_at: now,
+  });
+  if (taskError) throw new Error(taskError.message);
+
+  const { error: timelineError } = await sb.from("timeline_events").insert({
+    id: args.newTimeline.id,
+    patient_id: args.newTimeline.patientId,
+    summary: args.newTimeline.summary,
+    event_type: args.newTimeline.type,
+    created_at: now,
+  });
+  if (timelineError) throw new Error(timelineError.message);
+
+  await sb.from("audit_events").insert({
+    actor_id: args.staffId,
+    actor_name: args.staffName,
+    action: "create_task",
+    entity_type: "task",
+    entity_id: t.id,
+    patient_id: t.patientId,
+    detail: { title: t.title, priority: t.priority },
+  });
+}
+
+export async function persistAdministerMedication(args: {
+  medication: Medication;
+  newTimeline: TimelineEvent;
+  staffId: string;
+  staffName: string;
+}): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  const sb = requireClient();
+  const now = new Date().toISOString();
+
+  const { error: medError } = await sb
+    .from("medications")
+    .update({ status: args.medication.status })
+    .eq("id", args.medication.id);
+  if (medError) throw new Error(medError.message);
+
+  const { error: timelineError } = await sb.from("timeline_events").insert({
+    id: args.newTimeline.id,
+    patient_id: args.newTimeline.patientId,
+    summary: args.newTimeline.summary,
+    event_type: args.newTimeline.type,
+    created_at: now,
+  });
+  if (timelineError) throw new Error(timelineError.message);
+
+  await sb.from("audit_events").insert({
+    actor_id: args.staffId,
+    actor_name: args.staffName,
+    action: "administer_medication",
+    entity_type: "medication",
+    entity_id: args.medication.id,
+    patient_id: args.medication.patientId,
+    detail: { name: args.medication.name, dose: args.medication.dose },
+  });
+}
+
+export async function persistOrderMedication(args: {
+  medication: Medication;
+  newTimeline: TimelineEvent;
+  staffId: string;
+  staffName: string;
+}): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  const sb = requireClient();
+  const now = new Date().toISOString();
+  const m = args.medication;
+
+  const { error: medError } = await sb.from("medications").insert({
+    id: m.id,
+    patient_id: m.patientId,
+    name: m.name,
+    dose: m.dose,
+    due_label: m.due,
+    status: m.status,
+    ordered_by: args.staffId,
+    created_at: now,
+  });
+  if (medError) throw new Error(medError.message);
+
+  const { error: timelineError } = await sb.from("timeline_events").insert({
+    id: args.newTimeline.id,
+    patient_id: args.newTimeline.patientId,
+    summary: args.newTimeline.summary,
+    event_type: args.newTimeline.type,
+    created_at: now,
+  });
+  if (timelineError) throw new Error(timelineError.message);
+
+  await sb.from("audit_events").insert({
+    actor_id: args.staffId,
+    actor_name: args.staffName,
+    action: "order_medication",
+    entity_type: "medication",
+    entity_id: m.id,
+    patient_id: m.patientId,
+    detail: { name: m.name, dose: m.dose, due: m.due },
   });
 }
 
