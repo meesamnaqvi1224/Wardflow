@@ -1,20 +1,67 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ModulePlaceholder } from "@/components/ModulePlaceholder";
+import Link from "next/link";
 import { useSession } from "@/lib/session";
+import type { Patient, PatientStatus } from "@/lib/types";
+import { Badge } from "@/components/Badge";
 
 export default function AdministrationPage() {
-  const { staff, authMode, authStatus } = useSession();
+  const { staff, allStaff, data, authMode, authStatus, updatePatientProfile, resetDemo, refreshing } =
+    useSession();
   const router = useRouter();
   const allowed = staff.role === "admin";
+  const [savingId, setSavingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (authMode === "auth" && authStatus === "signed_in" && !allowed) {
       router.replace("/");
     }
   }, [authMode, authStatus, allowed, router]);
+
+  const doctors = useMemo(
+    () => allStaff.filter((s) => s.role === "doctor"),
+    [allStaff],
+  );
+  const nurses = useMemo(
+    () => allStaff.filter((s) => s.role === "nurse"),
+    [allStaff],
+  );
+
+  const staffLoad = useMemo(() => {
+    return allStaff.map((s) => {
+      const assigned =
+        s.role === "doctor"
+          ? data.patients.filter((p) => p.doctorId === s.id).length
+          : s.role === "nurse"
+            ? data.patients.filter((p) => p.nurseId === s.id).length
+            : data.patients.length;
+      return { ...s, assigned };
+    });
+  }, [allStaff, data.patients]);
+
+  async function reassign(
+    patient: Patient,
+    field: "doctorId" | "nurseId",
+    value: string,
+  ) {
+    setSavingId(patient.id);
+    try {
+      await updatePatientProfile(patient.id, {
+        name: patient.name,
+        age: patient.age,
+        room: patient.room,
+        diagnosis: patient.diagnosis,
+        allergy: patient.allergy,
+        status: patient.status as PatientStatus,
+        doctorId: field === "doctorId" ? value : patient.doctorId,
+        nurseId: field === "nurseId" ? value : patient.nurseId,
+      });
+    } finally {
+      setSavingId(null);
+    }
+  }
 
   if (!allowed) {
     return (
@@ -25,11 +72,122 @@ export default function AdministrationPage() {
   }
 
   return (
-    <ModulePlaceholder
-      eyebrow="Manage"
-      title="Administration"
-      description="Care-team assignments and ward staffing (admin only)."
-      phase="Phase 6"
-    />
+    <>
+      <div className="page-head">
+        <div>
+          <p className="eyebrow">Manage</p>
+          <h1>Administration</h1>
+          <p className="muted">
+            Care-team roster and patient assignments for Medical Ward A.
+          </p>
+        </div>
+        <div className="actions">
+          <button
+            type="button"
+            className="btn"
+            disabled={refreshing}
+            onClick={() => void resetDemo()}
+          >
+            {refreshing ? "Resetting…" : "Reset demo data"}
+          </button>
+        </div>
+      </div>
+
+      <section className="section">
+        <div className="section-head">
+          <h2>Care team</h2>
+          <span className="muted">{allStaff.length} staff</span>
+        </div>
+        <div className="panel panel-pad">
+          <div className="admin-table">
+            <div className="admin-row admin-head">
+              <span>Name</span>
+              <span>Role</span>
+              <span>Detail</span>
+              <span>Assignments</span>
+            </div>
+            {staffLoad.map((s) => (
+              <div key={s.id} className="admin-row">
+                <span>
+                  <strong>{s.name}</strong>
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    {s.initials}
+                  </div>
+                </span>
+                <span style={{ textTransform: "capitalize" }}>{s.role}</span>
+                <span className="muted">{s.detail || "—"}</span>
+                <span>
+                  {s.role === "admin"
+                    ? "Ward-wide"
+                    : `${s.assigned} patient${s.assigned === 1 ? "" : "s"}`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="section-head">
+          <h2>Patient assignments</h2>
+          <span className="muted">{data.patients.length} admitted</span>
+        </div>
+        <div className="panel panel-pad">
+          <div className="admin-table admin-table-patients">
+            <div className="admin-row admin-head">
+              <span>Patient</span>
+              <span>Status</span>
+              <span>Doctor</span>
+              <span>Nurse</span>
+            </div>
+            {data.patients.map((p) => (
+              <div key={p.id} className="admin-row">
+                <span>
+                  <Link href={`/patients/${p.id}`} className="text-link" style={{ display: "inline" }}>
+                    {p.name}
+                  </Link>
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    Room {p.room}
+                  </div>
+                </span>
+                <span>
+                  <Badge tone={p.status} />
+                </span>
+                <span>
+                  <select
+                    className="assignment-select"
+                    value={p.doctorId}
+                    disabled={savingId === p.id}
+                    onChange={(e) => void reassign(p, "doctorId", e.target.value)}
+                    aria-label={`Doctor for ${p.name}`}
+                  >
+                    {doctors.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                </span>
+                <span>
+                  <select
+                    className="assignment-select"
+                    value={p.nurseId}
+                    disabled={savingId === p.id}
+                    onChange={(e) => void reassign(p, "nurseId", e.target.value)}
+                    aria-label={`Nurse for ${p.name}`}
+                  >
+                    {nurses.map((n) => (
+                      <option key={n.id} value={n.id}>
+                        {n.name}
+                      </option>
+                    ))}
+                  </select>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    </>
   );
 }

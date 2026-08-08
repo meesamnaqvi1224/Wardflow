@@ -23,9 +23,11 @@ With Supabase configured you will be redirected to **`/login`**.
 4. Open **Alerts**, acknowledge / resolve as a doctor or nurse.
 5. **Tasks** — create and complete care tasks (clinicians).
 6. **Medications** — order (doctor) and record administration (nurse/doctor).
-7. **My profile** / patient **Edit profile**.
-8. **Reset demo** (admin only when signed in) restores the seed scenario.
-9. Banner shows signed-in role + **Live Supabase** when connected.
+7. **Notes** — add clinical notes on a patient record.
+8. **Administration** (admin) — staff roster + reassign doctors/nurses.
+9. **My profile** / patient **Edit profile**.
+10. **Reset demo** (admin only when signed in) restores the seed scenario.
+11. Banner shows signed-in role + **Live Supabase** when connected.
 
 Without Supabase env vars, the app runs in **offline seed mode** with a demo role switcher (no login).
 

@@ -703,6 +703,42 @@ tbody tr.clickable:hover {
   margin-bottom: 0;
   padding-bottom: 0;
 }
+
+.admin-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.admin-row {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr 1.2fr 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+.admin-table-patients .admin-row {
+  grid-template-columns: 1.3fr 0.7fr 1.2fr 1.2fr;
+}
+.admin-row:last-child {
+  border-bottom: 0;
+}
+.admin-head {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  padding-top: 0;
+}
+@media (max-width: 800px) {
+  .admin-row,
+  .admin-table-patients .admin-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
 .mini-btn {
   border: 1px solid var(--line);
   background: white;

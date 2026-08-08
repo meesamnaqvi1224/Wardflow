@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Alert,
   Medication,
+  Note,
   Patient,
   PatientStatus,
   StaffMember,
@@ -389,6 +390,48 @@ export async function persistOrderMedication(args: {
     entity_id: m.id,
     patient_id: m.patientId,
     detail: { name: m.name, dose: m.dose, due: m.due },
+  });
+}
+
+export async function persistAddNote(args: {
+  note: Note;
+  newTimeline: TimelineEvent;
+  staffId: string;
+  staffName: string;
+}): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  const sb = requireClient();
+  const now = new Date().toISOString();
+  const n = args.note;
+
+  const { error: noteError } = await sb.from("notes").insert({
+    id: n.id,
+    patient_id: n.patientId,
+    author_name: n.author,
+    author_id: args.staffId,
+    note_type: n.type,
+    content: n.content,
+    created_at: now,
+  });
+  if (noteError) throw new Error(noteError.message);
+
+  const { error: timelineError } = await sb.from("timeline_events").insert({
+    id: args.newTimeline.id,
+    patient_id: args.newTimeline.patientId,
+    summary: args.newTimeline.summary,
+    event_type: args.newTimeline.type,
+    created_at: now,
+  });
+  if (timelineError) throw new Error(timelineError.message);
+
+  await sb.from("audit_events").insert({
+    actor_id: args.staffId,
+    actor_name: args.staffName,
+    action: "add_note",
+    entity_type: "note",
+    entity_id: n.id,
+    patient_id: n.patientId,
+    detail: { type: n.type },
   });
 }
 

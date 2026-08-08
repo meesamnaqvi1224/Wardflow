@@ -14,6 +14,7 @@ import { CreateTaskDrawer } from "@/components/tasks/CreateTaskDrawer";
 import { MedicationRow } from "@/components/medications/MedicationRow";
 import { OrderMedicationDrawer } from "@/components/medications/OrderMedicationDrawer";
 import { NoteRow } from "@/components/notes/NoteRow";
+import { AddNoteDrawer } from "@/components/notes/AddNoteDrawer";
 import { Timeline } from "@/components/Timeline";
 
 const TABS = ["Overview", "Vitals", "Medications", "Notes", "Tasks", "Timeline"] as const;
@@ -36,6 +37,7 @@ export function PatientDetail({ patient }: { patient: Patient }) {
     createTask,
     administerMedication,
     orderMedication,
+    addNote,
   } = useSession();
   const [tab, setTab] = useState<Tab>("Overview");
   const [notice, setNotice] = useState<string | null>(null);
@@ -43,6 +45,7 @@ export function PatientDetail({ patient }: { patient: Patient }) {
   const [editOpen, setEditOpen] = useState(false);
   const [taskOpen, setTaskOpen] = useState(false);
   const [medOpen, setMedOpen] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
 
   // Re-read patient from session so vitals updates re-render after recording.
   const live = data.patients.find((p) => p.id === patient.id) ?? patient;
@@ -59,8 +62,7 @@ export function PatientDetail({ patient }: { patient: Patient }) {
   const canEditAssignments = staff.role === "admin" || staff.role === "doctor";
   const canManageAlerts = staff.role === "doctor" || staff.role === "nurse";
   const canAdminister = staff.role === "nurse" || staff.role === "doctor";
-  const futureAction = (label: string) => () =>
-    setNotice(`"${label}" is planned for a later module.`);
+  const canAddNote = isClinician || staff.role === "admin";
 
   const patientNumber = `DEMO-${1000 + Number(live.id.slice(1))}`;
   const doctorName =
@@ -113,7 +115,13 @@ export function PatientDetail({ patient }: { patient: Patient }) {
               <button className="btn primary" onClick={() => setVitalsOpen(true)}>
                 Record vitals
               </button>
-              <button className="btn" onClick={futureAction("Add note")}>
+              <button
+                className="btn"
+                onClick={() => {
+                  setNotice(null);
+                  setNoteOpen(true);
+                }}
+              >
                 Add note
               </button>
               <button
@@ -261,6 +269,11 @@ export function PatientDetail({ patient }: { patient: Patient }) {
         <div className="panel panel-pad">
           <div className="section-head">
             <h2>Clinical notes</h2>
+            {canAddNote ? (
+              <button type="button" className="btn primary" onClick={() => setNoteOpen(true)}>
+                Add note
+              </button>
+            ) : null}
           </div>
           {notes.length ? (
             notes.map((n) => <NoteRow key={n.id} note={n} />)
@@ -346,6 +359,19 @@ export function PatientDetail({ patient }: { patient: Patient }) {
           onSubmit={async (input) => {
             const result = await orderMedication(input);
             if (!result.error) setTab("Medications");
+            return result;
+          }}
+        />
+      ) : null}
+
+      {noteOpen ? (
+        <AddNoteDrawer
+          patient={live}
+          role={staff.role}
+          onClose={() => setNoteOpen(false)}
+          onSubmit={async (input) => {
+            const result = await addNote(input);
+            if (!result.error) setTab("Notes");
             return result;
           }}
         />

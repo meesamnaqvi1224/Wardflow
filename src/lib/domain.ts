@@ -3,6 +3,7 @@ import type {
   AlertSeverity,
   Medication,
   MedicationStatus,
+  Note,
   Patient,
   PatientStatus,
   Role,
@@ -406,6 +407,54 @@ export function applyOrderMedication(
       timeline: [newTimeline, ...data.timeline],
     },
     medication,
+    newTimeline,
+  };
+}
+
+export interface NoteMutationResult {
+  data: WardData;
+  note: Note;
+  newTimeline: TimelineEvent;
+}
+
+/** Add a clinical note and timeline entry. */
+export function applyAddNote(
+  data: WardData,
+  input: {
+    patientId: string;
+    type: string;
+    content: string;
+    staffName: string;
+  },
+): NoteMutationResult | null {
+  if (!data.patients.some((p) => p.id === input.patientId)) return null;
+  const content = input.content.trim();
+  const type = input.type.trim() || "Clinical note";
+  if (!content) return null;
+
+  const note: Note = {
+    id: newId("n"),
+    patientId: input.patientId,
+    author: input.staffName,
+    type,
+    content,
+    at: "Just now",
+  };
+  const newTimeline: TimelineEvent = {
+    id: newId("e"),
+    patientId: input.patientId,
+    summary: `${input.staffName} added ${type.toLowerCase()}`,
+    at: "Just now",
+    type: "note",
+  };
+
+  return {
+    data: {
+      ...data,
+      notes: [note, ...data.notes],
+      timeline: [newTimeline, ...data.timeline],
+    },
+    note,
     newTimeline,
   };
 }

@@ -20,6 +20,7 @@ import type {
 } from "./types";
 import { SEED, STAFF } from "./seed";
 import {
+  applyAddNote,
   applyAdministerMedication,
   applyAlertStatus,
   applyCompleteTask,
@@ -31,6 +32,7 @@ import {
 import {
   getDataSource,
   loadWardBundle,
+  persistAddNote,
   persistAdministerMedication,
   persistAlertStatus,
   persistCompleteTask,
@@ -119,6 +121,11 @@ interface SessionValue {
     name: string;
     dose: string;
     due: string;
+  }) => Promise<{ error: string | null }>;
+  addNote: (input: {
+    patientId: string;
+    type: string;
+    content: string;
   }) => Promise<{ error: string | null }>;
   resetDemo: () => Promise<void>;
   reload: () => Promise<void>;
@@ -549,6 +556,34 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [staff.id, staff.name, dataSource, reload],
   );
 
+  const addNote = useCallback(
+    async (input: { patientId: string; type: string; content: string }) => {
+      const result = applyAddNote(dataRef.current, {
+        ...input,
+        staffName: staff.name,
+      });
+      if (!result) return { error: "Could not add note." };
+      dataRef.current = result.data;
+      setData(result.data);
+      try {
+        await persistAddNote({
+          note: result.note,
+          newTimeline: result.newTimeline,
+          staffId: staff.id,
+          staffName: staff.name,
+        });
+        setToast(`Note saved${dataSource === "supabase" ? " to Supabase" : ""}`);
+        return { error: null };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Save failed";
+        setToast(`Local only — Supabase error: ${message}`);
+        if (dataSource === "supabase") void reload();
+        return { error: message };
+      }
+    },
+    [staff.id, staff.name, dataSource, reload],
+  );
+
   const updateStaffProfile = useCallback(
     async (input: { name: string; detail: string; initials: string }) => {
       const name = input.name.trim();
@@ -713,6 +748,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       createTask,
       administerMedication,
       orderMedication,
+      addNote,
       resetDemo,
       reload,
     }),
@@ -741,6 +777,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       createTask,
       administerMedication,
       orderMedication,
+      addNote,
       resetDemo,
       reload,
     ],
