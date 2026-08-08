@@ -22,6 +22,9 @@ export function AuthUserMenu() {
       <Link href="/profile" className="btn">
         Profile
       </Link>
+      <Link href="/settings" className="btn">
+        Settings
+      </Link>
       <button
         type="button"
         className="btn"

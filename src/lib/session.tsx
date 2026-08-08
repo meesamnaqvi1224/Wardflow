@@ -11,8 +11,10 @@ import {
 } from "react";
 import type { User } from "@supabase/supabase-js";
 import type {
+  AuditEvent,
   Patient,
   PatientStatus,
+  Role,
   StaffMember,
   TaskPriority,
   Vitals,
@@ -31,16 +33,19 @@ import {
 } from "./domain";
 import {
   getDataSource,
+  loadAuditEvents,
   loadWardBundle,
   persistAddNote,
   persistAdministerMedication,
   persistAlertStatus,
   persistCompleteTask,
+  persistCreateStaff,
   persistCreateTask,
   persistOrderMedication,
   persistPatientProfile,
   persistRecordVitals,
   persistStaffProfile,
+  persistUpdateStaff,
   resetWardToSeed,
 } from "./supabase/ward";
 import {
@@ -127,6 +132,27 @@ interface SessionValue {
     type: string;
     content: string;
   }) => Promise<{ error: string | null }>;
+  changePassword: (input: {
+    currentPassword: string;
+    newPassword: string;
+  }) => Promise<{ error: string | null }>;
+  createStaffMember: (input: {
+    name: string;
+    role: Role;
+    detail: string;
+    initials: string;
+  }) => Promise<{ error: string | null }>;
+  updateStaffMember: (input: {
+    id: string;
+    name: string;
+    role: Role;
+    detail: string;
+    initials: string;
+  }) => Promise<{ error: string | null }>;
+  fetchAuditLog: (limit?: number) => Promise<{
+    events: AuditEvent[];
+    error: string | null;
+  }>;
   resetDemo: () => Promise<void>;
   reload: () => Promise<void>;
 }
@@ -146,7 +172,7 @@ async function fetchStaffForUser(
   if (!sb) return null;
   const { data, error } = await sb
     .from("staff")
-    .select("id,name,role,detail,initials")
+    .select("id,name,role,detail,initials,auth_user_id")
     .eq("auth_user_id", userId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -157,6 +183,7 @@ async function fetchStaffForUser(
     role: data.role,
     detail: data.detail ?? "",
     initials: data.initials,
+    authUserId: data.auth_user_id ?? null,
   };
 }
 
@@ -584,6 +611,133 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [staff.id, staff.name, dataSource, reload],
   );
 
+  const changePassword = useCallback(
+    async (input: { currentPassword: string; newPassword: string }) => {
+      if (authMode !== "auth") {
+        return { error: "Password change requires Supabase Auth." };
+      }
+      const sb = createSupabaseBrowserClient();
+      if (!sb || !user?.email) {
+        return { error: "Not signed in." };
+      }
+      const newPassword = input.newPassword;
+      if (newPassword.length < 8) {
+        return { error: "New password must be at least 8 characters." };
+      }
+      const { error: reauthError } = await sb.auth.signInWithPassword({
+        email: user.email,
+        password: input.currentPassword,
+      });
+      if (reauthError) {
+        return { error: "Current password is incorrect." };
+      }
+      const { error } = await sb.auth.updateUser({ password: newPassword });
+      if (error) return { error: error.message };
+      setToast("Password updated");
+      return { error: null };
+    },
+    [authMode, user],
+  );
+
+  const createStaffMember = useCallback(
+    async (input: {
+      name: string;
+      role: Role;
+      detail: string;
+      initials: string;
+    }) => {
+      if (staff.role !== "admin") {
+        return { error: "Only admins can add staff." };
+      }
+      const name = input.name.trim();
+      const initials = input.initials.trim().toUpperCase().slice(0, 3);
+      if (!name || !initials) {
+        return { error: "Name and initials are required." };
+      }
+      const id =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? `${input.role}_${crypto.randomUUID().slice(0, 8)}`
+          : `${input.role}_${Date.now()}`;
+      const member: StaffMember = {
+        id,
+        name,
+        role: input.role,
+        detail: input.detail.trim(),
+        initials,
+        authUserId: null,
+      };
+      const previous = allStaff;
+      setAllStaff((list) =>
+        [...list, member].sort((a, b) => a.name.localeCompare(b.name)),
+      );
+      try {
+        await persistCreateStaff(member);
+        setToast("Staff member added");
+        return { error: null };
+      } catch (err) {
+        setAllStaff(previous);
+        const message = err instanceof Error ? err.message : "Save failed";
+        setToast(`Could not add staff: ${message}`);
+        return { error: message };
+      }
+    },
+    [staff.role, allStaff],
+  );
+
+  const updateStaffMember = useCallback(
+    async (input: {
+      id: string;
+      name: string;
+      role: Role;
+      detail: string;
+      initials: string;
+    }) => {
+      if (staff.role !== "admin") {
+        return { error: "Only admins can edit staff." };
+      }
+      const existing = allStaff.find((s) => s.id === input.id);
+      if (!existing) return { error: "Staff not found." };
+      const name = input.name.trim();
+      const initials = input.initials.trim().toUpperCase().slice(0, 3);
+      if (!name || !initials) {
+        return { error: "Name and initials are required." };
+      }
+      const next: StaffMember = {
+        ...existing,
+        name,
+        role: input.role,
+        detail: input.detail.trim(),
+        initials,
+      };
+      const previous = allStaff;
+      const previousAuth = authStaff;
+      setAllStaff((list) => list.map((s) => (s.id === next.id ? next : s)));
+      if (authStaff?.id === next.id) setAuthStaff(next);
+      try {
+        await persistUpdateStaff(next);
+        setToast("Staff updated");
+        return { error: null };
+      } catch (err) {
+        setAllStaff(previous);
+        if (previousAuth) setAuthStaff(previousAuth);
+        const message = err instanceof Error ? err.message : "Save failed";
+        setToast(`Could not update staff: ${message}`);
+        return { error: message };
+      }
+    },
+    [staff.role, allStaff, authStaff],
+  );
+
+  const fetchAuditLog = useCallback(async (limit = 50) => {
+    try {
+      const events = await loadAuditEvents(limit);
+      return { events, error: null };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load audit log";
+      return { events: [] as AuditEvent[], error: message };
+    }
+  }, []);
+
   const updateStaffProfile = useCallback(
     async (input: { name: string; detail: string; initials: string }) => {
       const name = input.name.trim();
@@ -749,6 +903,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       administerMedication,
       orderMedication,
       addNote,
+      changePassword,
+      createStaffMember,
+      updateStaffMember,
+      fetchAuditLog,
       resetDemo,
       reload,
     }),
@@ -778,6 +936,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       administerMedication,
       orderMedication,
       addNote,
+      changePassword,
+      createStaffMember,
+      updateStaffMember,
+      fetchAuditLog,
       resetDemo,
       reload,
     ],

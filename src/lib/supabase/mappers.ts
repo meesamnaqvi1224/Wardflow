@@ -2,6 +2,7 @@ import type {
   Alert,
   AlertSeverity,
   AlertStatus,
+  AuditEvent,
   Medication,
   MedicationStatus,
   Note,
@@ -25,6 +26,19 @@ export interface StaffRow {
   role: Role;
   detail: string;
   initials: string;
+  auth_user_id?: string | null;
+}
+
+export interface AuditRow {
+  id: string;
+  actor_id: string | null;
+  actor_name: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  patient_id: string | null;
+  detail: Record<string, unknown> | null;
+  created_at: string;
 }
 
 export interface PatientRow {
@@ -120,6 +134,21 @@ export function mapStaff(row: StaffRow): StaffMember {
     role: row.role,
     detail: row.detail ?? "",
     initials: row.initials,
+    authUserId: row.auth_user_id ?? null,
+  };
+}
+
+export function mapAudit(row: AuditRow): AuditEvent {
+  return {
+    id: row.id,
+    actorId: row.actor_id,
+    actorName: row.actor_name,
+    action: row.action,
+    entityType: row.entity_type,
+    entityId: row.entity_id,
+    patientId: row.patient_id,
+    detail: row.detail ?? {},
+    at: formatWhen(row.created_at),
   };
 }
 

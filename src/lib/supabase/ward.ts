@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Alert,
+  AuditEvent,
   Medication,
   Note,
   Patient,
@@ -14,8 +15,10 @@ import type {
 import { SEED, STAFF } from "@/lib/seed";
 import {
   buildWardData,
+  mapAudit,
   mapStaff,
   type AlertRow,
+  type AuditRow,
   type MedicationRow,
   type NoteRow,
   type PatientRow,
@@ -62,7 +65,7 @@ export async function loadWardBundle(): Promise<WardBundle> {
     notesRes,
     timelineRes,
   ] = await Promise.all([
-    sb.from("staff").select("id,name,role,detail,initials").order("name"),
+    sb.from("staff").select("id,name,role,detail,initials,auth_user_id").order("name"),
     sb.from("patients").select("*").order("room"),
     sb.from("alerts").select("*").order("created_at", { ascending: false }),
     sb.from("tasks").select("*").order("created_at", { ascending: false }),
@@ -124,6 +127,49 @@ export async function persistStaffProfile(args: {
     })
     .eq("id", args.staffId);
   if (error) throw new Error(error.message);
+}
+
+/** Admin create staff profile (auth link is optional / separate). */
+export async function persistCreateStaff(member: StaffMember): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  const sb = requireClient();
+  const { error } = await sb.from("staff").insert({
+    id: member.id,
+    name: member.name,
+    role: member.role,
+    detail: member.detail,
+    initials: member.initials,
+    auth_user_id: member.authUserId ?? null,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Admin update staff fields including role. */
+export async function persistUpdateStaff(member: StaffMember): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  const sb = requireClient();
+  const { error } = await sb
+    .from("staff")
+    .update({
+      name: member.name,
+      role: member.role,
+      detail: member.detail,
+      initials: member.initials,
+    })
+    .eq("id", member.id);
+  if (error) throw new Error(error.message);
+}
+
+export async function loadAuditEvents(limit = 50): Promise<AuditEvent[]> {
+  if (!isSupabaseConfigured()) return [];
+  const sb = requireClient();
+  const { data, error } = await sb
+    .from("audit_events")
+    .select("id,actor_id,actor_name,action,entity_type,entity_id,patient_id,detail,created_at")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => mapAudit(row as AuditRow));
 }
 
 /** Update patient demographic / assignment fields (not vitals). */

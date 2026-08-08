@@ -36,6 +36,21 @@ export interface StaffMember {
   role: Role;
   detail: string;
   initials: string;
+  /** Present when linked to a Supabase Auth user. */
+  authUserId?: string | null;
+}
+
+/** Row from audit_events for admin review. */
+export interface AuditEvent {
+  id: string;
+  actorId: string | null;
+  actorName: string | null;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  patientId: string | null;
+  detail: Record<string, unknown>;
+  at: string;
 }
 
 export interface Vitals {

@@ -786,6 +786,31 @@ tbody tr.clickable:hover {
 .admin-table-patients .admin-row {
   grid-template-columns: 1.3fr 0.7fr 1.2fr 1.2fr;
 }
+.admin-table-staff .admin-row {
+  grid-template-columns: 1.4fr 0.7fr 0.7fr 0.9fr auto;
+}
+.admin-table-audit .admin-row {
+  grid-template-columns: 0.9fr 1fr 1.1fr 1.2fr;
+}
+.settings-dl {
+  margin: 0;
+  display: grid;
+  gap: 14px;
+}
+.settings-dl div {
+  display: grid;
+  gap: 4px;
+}
+.settings-dl dt {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.settings-dl dd {
+  margin: 0;
+}
 .admin-row:last-child {
   border-bottom: 0;
 }

@@ -33,6 +33,7 @@ export function Sidebar({
     { href: "/alerts", label: "Alerts", count: activeAlerts },
     { href: "/medications", label: "Medications" },
     { href: "/profile", label: "My profile" },
+    { href: "/settings", label: "Settings" },
   ];
 
   const isActive = (href: string) =>
