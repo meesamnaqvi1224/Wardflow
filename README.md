@@ -15,6 +15,19 @@ Open [http://localhost:3000](http://localhost:3000).
 
 With Supabase configured you will be redirected to **`/login`**.
 
+## Android app (v1 remote shell)
+
+The **`mobile/`** folder is a Capacitor Android project that opens the production web app in a WebView.
+
+```bash
+cd mobile
+npm install
+npx cap sync android
+npx cap open android
+```
+
+See **[mobile/README.md](./mobile/README.md)** for package id (`meesam.wardflow`), URL config, and Play Store notes.
+
 ## What works today
 
 1. **Sign in** as doctor / nurse / admin (Phase 4).

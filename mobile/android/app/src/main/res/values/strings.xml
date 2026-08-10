@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">WardFlow</string>
+    <string name="title_activity_main">WardFlow</string>
+    <string name="package_name">meesam.wardflow</string>
+    <string name="custom_url_scheme">meesam.wardflow</string>
+</resources>
