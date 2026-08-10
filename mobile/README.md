@@ -94,12 +94,74 @@ Web product code stays in the repo root (`src/`, Next.js). Do **not** run Next b
 
 ---
 
-## Store release (later)
+## Signed Play Store build (AAB)
 
-1. Create a signed **release** keystore in Android Studio  
-2. `Build → Generate Signed Bundle / APK` → **AAB** for Play Console  
-3. Play listing: screenshots, privacy policy URL, “fictional demo data” disclaimer  
-4. iOS: `npx cap add ios` on a Mac with Xcode (Phase 2)
+### Secrets (local only — never commit)
+
+| File | Purpose |
+|------|--------|
+| `keystore/wardflow-release.keystore` | Signing key (private) |
+| `keystore/keystore.properties` | Passwords for Gradle |
+| `keystore/BACKUP-THESE-CREDENTIALS.txt` | Human-readable backup |
+
+Copy `keystore/keystore.properties.example` if you recreate a keystore.
+
+**Back up the keystore + passwords offline.** Losing them means you cannot update the same Play listing.
+
+### Build the release bundle
+
+```bash
+cd mobile
+npm install
+npx cap sync android
+
+export JAVA_HOME="$HOME/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+# If Studio is in /Applications:
+# export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+
+cd android
+./gradlew bundleRelease
+```
+
+Output AAB:
+
+```text
+mobile/android/app/build/outputs/bundle/release/app-release.aab
+```
+
+Copy to a convenient folder:
+
+```bash
+mkdir -p ../release
+cp app/build/outputs/bundle/release/app-release.aab ../release/wardflow-1.0.0.aab
+```
+
+### Upload to Google Play Console
+
+1. Create app at [https://play.google.com/console](https://play.google.com/console)  
+2. Package name must match: **`meesam.wardflow`**  
+3. **Production** or **Internal testing** → Create release → upload the **.aab**  
+4. Complete: store listing, content rating, privacy policy, target audience  
+5. For a **remote WebView app**, note that the app loads  
+   `https://wardflow-meesam1.vercel.app` (network required)  
+6. Privacy policy should mention web content + fictional demo data  
+
+### Version bumps
+
+In `android/app/build.gradle` under `defaultConfig`:
+
+- `versionCode` — integer, must increase each Play upload (1, 2, 3…)  
+- `versionName` — user-facing string (`1.0.0`, `1.0.1`, …)  
+
+Then rebuild `bundleRelease`.
+
+### iOS (later)
+
+```bash
+npx cap add ios
+```
+
+Requires Xcode and an Apple Developer account.
 
 ---
 

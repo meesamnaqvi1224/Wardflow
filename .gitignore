@@ -51,3 +51,11 @@ next-env.d.ts
 /mobile/android/.idea/
 /mobile/android/*.iml
 /mobile/android/app/*.iml
+
+# Play Store signing secrets (never commit)
+/mobile/keystore/*.keystore
+/mobile/keystore/*.jks
+/mobile/keystore/keystore.properties
+/mobile/keystore/BACKUP-THESE-CREDENTIALS.txt
+/mobile/keystore/*.pepk
+/mobile/release/
