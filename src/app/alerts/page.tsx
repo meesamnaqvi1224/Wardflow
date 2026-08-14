@@ -40,7 +40,13 @@ export default function AlertsPage() {
                   <strong>{patientName(a.patientId)}</strong>
                 </Link>
                 <Badge
-                  tone={a.status === "resolved" ? "neutral" : a.severity}
+                  tone={
+                    a.status === "active"
+                      ? a.severity
+                      : a.status === "acknowledged"
+                        ? "warning"
+                        : "neutral"
+                  }
                   label={a.status}
                 />
               </div>

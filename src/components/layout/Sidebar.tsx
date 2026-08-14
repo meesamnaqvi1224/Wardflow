@@ -23,14 +23,23 @@ export function Sidebar({
   const pathname = usePathname();
   const { staff, data } = useSession();
 
+  // Badge only for work that still needs attention — never render a red "0".
   const openTasks = data.tasks.filter((t) => t.status === "open").length;
   const activeAlerts = data.alerts.filter((a) => a.status === "active").length;
 
   const workspace: NavItem[] = [
     { href: "/", label: "Ward dashboard" },
     { href: "/patients", label: "My patients" },
-    { href: "/tasks", label: "Tasks", count: openTasks },
-    { href: "/alerts", label: "Alerts", count: activeAlerts },
+    {
+      href: "/tasks",
+      label: "Tasks",
+      count: openTasks > 0 ? openTasks : undefined,
+    },
+    {
+      href: "/alerts",
+      label: "Alerts",
+      count: activeAlerts > 0 ? activeAlerts : undefined,
+    },
     { href: "/medications", label: "Medications" },
     { href: "/profile", label: "My profile" },
     { href: "/settings", label: "Settings" },
@@ -48,7 +57,11 @@ export function Sidebar({
       aria-current={isActive(href) ? "page" : undefined}
     >
       {label}
-      {count !== undefined ? <span className="nav-count">{count}</span> : null}
+      {typeof count === "number" && count > 0 ? (
+        <span className="nav-count" aria-label={`${count} pending`}>
+          {count}
+        </span>
+      ) : null}
     </Link>
   );
 

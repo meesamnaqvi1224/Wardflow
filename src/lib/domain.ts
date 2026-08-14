@@ -93,7 +93,10 @@ export function overallSeverity(abnormalities: Abnormality[]): AlertSeverity | n
 
 /** Ward-level counts used by the dashboard stat cards. */
 export function wardSummary(data: WardData) {
-  const activeAlertList = data.alerts.filter((a) => a.status !== "resolved");
+  // Only unacknowledged alerts count as "active" for badges/stats.
+  // Acknowledged alerts stay on the Alerts page until resolved, but must not
+  // keep the red nav badge or "active alerts" stat inflated.
+  const activeAlertList = data.alerts.filter((a) => a.status === "active");
   const openTaskList = data.tasks.filter((t) => t.status !== "completed");
   return {
     patients: data.patients.length,

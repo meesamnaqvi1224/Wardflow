@@ -130,6 +130,13 @@ a {
   color: white;
   background: var(--red);
   font-size: 11px;
+  min-width: 1.25em;
+  text-align: center;
+}
+/* Never show an empty / zero notification pill */
+.nav-count:empty,
+.nav-count[data-count="0"] {
+  display: none;
 }
 
 .sidebar-foot {

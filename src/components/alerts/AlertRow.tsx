@@ -22,7 +22,11 @@ export function AlertRow({
             {alert.at} · {alert.status}
           </div>
         </div>
-        <Badge tone={alert.severity} />
+        {/* Severity stays informative, but only "active" keeps urgent red treatment */}
+        <Badge
+          tone={alert.status === "active" ? alert.severity : "neutral"}
+          label={alert.severity}
+        />
       </div>
       {showActions ? (
         <div className="row-actions">
