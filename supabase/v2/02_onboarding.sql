@@ -32,6 +32,7 @@ create function public.default_hospital_settings()
 returns jsonb
 language sql
 immutable
+set search_path = public
 as $$
   select jsonb_build_object(
     'timezone', 'UTC',
@@ -51,6 +52,7 @@ create function public.make_initials(p_name text)
 returns text
 language sql
 immutable
+set search_path = public
 as $$
   select coalesce(
     nullif(

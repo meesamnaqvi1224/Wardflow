@@ -249,6 +249,18 @@ create index idx_timeline_patient on timeline_events (hospital_id, patient_id, c
 create index idx_vitals_patient on vital_readings (hospital_id, patient_id, created_at desc);
 create index idx_audit_hospital on audit_events (hospital_id, created_at desc);
 
+-- Cover the remaining composite foreign keys (found by the Supabase advisor);
+-- without these, deleting/updating a referenced staff, patient or ward row has
+-- to scan the referencing table.
+create index idx_audit_actor on audit_events (hospital_id, actor_id);
+create index idx_audit_patient on audit_events (hospital_id, patient_id);
+create index idx_invites_invited_by on hospital_invites (hospital_id, invited_by);
+create index idx_hospitals_created_by on hospitals (created_by);
+create index idx_meds_ordered_by on medications (hospital_id, ordered_by);
+create index idx_notes_author on notes (hospital_id, author_id);
+create index idx_patients_ward on patients (hospital_id, ward_id);
+create index idx_vitals_recorded_by on vital_readings (hospital_id, recorded_by);
+
 -- ---------------------------------------------------------------------------
 -- Caller helpers
 -- ---------------------------------------------------------------------------
