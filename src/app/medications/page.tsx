@@ -6,6 +6,7 @@ import { useSession } from "@/lib/session";
 import { assignedPatients } from "@/lib/domain";
 import { MedicationRow } from "@/components/medications/MedicationRow";
 import { OrderMedicationDrawer } from "@/components/medications/OrderMedicationDrawer";
+import { patientHref } from "@/lib/routes";
 
 export default function MedicationsPage() {
   const { staff, data, administerMedication, orderMedication, actionBusy } =
@@ -74,7 +75,7 @@ export default function MedicationsPage() {
           medications.map((med) => (
             <div key={med.id} className="list-item-block">
               <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>
-                <Link href={`/patients/${med.patientId}`} className="text-link" style={{ display: "inline" }}>
+                <Link href={patientHref(med.patientId)} className="text-link" style={{ display: "inline" }}>
                   {patientName(med.patientId)}
                 </Link>
               </div>

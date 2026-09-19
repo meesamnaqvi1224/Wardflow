@@ -45,8 +45,12 @@ export function Sidebar({
     { href: "/settings", label: "Settings" },
   ];
 
-  const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname.startsWith(href);
+  const isActive = (href: string) => {
+    if (href === "/") return pathname === "/";
+    // Patient detail lives at /patient; keep "My patients" highlighted there.
+    if (href === "/patients") return pathname.startsWith("/patient");
+    return pathname.startsWith(href);
+  };
 
   const renderItem = ({ href, label, count }: NavItem) => (
     <Link

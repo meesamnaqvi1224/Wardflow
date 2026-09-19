@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSession } from "@/lib/session";
 import { AlertRow } from "@/components/alerts/AlertRow";
 import { Badge } from "@/components/Badge";
+import { patientHref } from "@/lib/routes";
 
 export default function AlertsPage() {
   const { data, staff, acknowledgeAlert, resolveAlert, actionBusy } = useSession();
@@ -36,7 +37,7 @@ export default function AlertsPage() {
           alerts.map((a) => (
             <div key={a.id} className="alert-list-item">
               <div className="row-top" style={{ marginBottom: 6 }}>
-                <Link href={`/patients/${a.patientId}`} className="alert-patient-link">
+                <Link href={patientHref(a.patientId)} className="alert-patient-link">
                   <strong>{patientName(a.patientId)}</strong>
                 </Link>
                 <Badge

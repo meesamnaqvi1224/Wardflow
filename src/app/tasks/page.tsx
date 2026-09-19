@@ -6,6 +6,7 @@ import { useSession } from "@/lib/session";
 import { assignedPatients } from "@/lib/domain";
 import { TaskRow } from "@/components/tasks/TaskRow";
 import { CreateTaskDrawer } from "@/components/tasks/CreateTaskDrawer";
+import { patientHref } from "@/lib/routes";
 
 export default function TasksPage() {
   const { staff, data, completeTask, createTask, actionBusy } = useSession();
@@ -75,7 +76,7 @@ export default function TasksPage() {
           tasks.map((task) => (
             <div key={task.id} className="list-item-block">
               <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>
-                <Link href={`/patients/${task.patientId}`} className="text-link" style={{ display: "inline" }}>
+                <Link href={patientHref(task.patientId)} className="text-link" style={{ display: "inline" }}>
                   {patientName(task.patientId)}
                 </Link>
                 {task.status === "completed" ? " · completed" : null}

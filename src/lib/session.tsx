@@ -52,6 +52,7 @@ import {
   createSupabaseBrowserClient,
   isSupabaseConfigured,
 } from "./supabase/client";
+import { isDemoResetEnabled } from "./demo";
 
 /**
  * Session context: acting staff + ward data + optional Supabase Auth.
@@ -904,6 +905,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const resetDemo = useCallback(async () => {
     if (authMode === "auth" && staff.role !== "admin") {
       setToast("Only admins can reset demo data.");
+      return;
+    }
+    if (authMode === "auth" && !isDemoResetEnabled()) {
+      setToast("Demo reset is disabled in this environment.");
       return;
     }
     setRefreshing(true);

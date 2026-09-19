@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/session";
 import { assignedPatients, bySeverity } from "@/lib/domain";
 import type { Patient } from "@/lib/types";
+import { patientHref } from "@/lib/routes";
 
 function matchesQuery(patient: Patient, q: string): boolean {
   const hay = `${patient.name} ${patient.room} ${patient.diagnosis} ${patient.allergy}`.toLowerCase();
@@ -51,7 +52,7 @@ export function PatientSearch() {
   function go(patientId: string) {
     setOpen(false);
     setQuery("");
-    router.push(`/patients/${patientId}`);
+    router.push(patientHref(patientId));
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {

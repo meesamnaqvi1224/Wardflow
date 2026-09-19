@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Alert, Patient, Task } from "@/lib/types";
 import { activeAlerts, openTasks } from "@/lib/domain";
 import { Badge } from "@/components/Badge";
+import { patientHref } from "@/lib/routes";
 
 /**
  * Tabular patient list used for assigned and ward-wide views. The patient name
@@ -38,7 +39,7 @@ export function PatientTable({
           {patients.map((p) => (
             <tr key={p.id}>
               <td>
-                <Link href={`/patients/${p.id}`} className="text-link row-title">
+                <Link href={patientHref(p.id)} className="text-link row-title">
                   {p.name}
                 </Link>
                 <span className="muted">{p.age} years</span>

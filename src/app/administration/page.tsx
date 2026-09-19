@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "@/lib/session";
+import { isDemoResetEnabled } from "@/lib/demo";
+import { patientHref } from "@/lib/routes";
 import type { AuditEvent, Patient, PatientStatus, Role, StaffMember } from "@/lib/types";
 import { Badge } from "@/components/Badge";
 import { StaffFormDrawer } from "@/components/admin/StaffFormDrawer";
@@ -117,14 +119,16 @@ export default function AdministrationPage() {
           >
             Add staff
           </button>
-          <button
-            type="button"
-            className="btn"
-            disabled={refreshing}
-            onClick={() => void resetDemo()}
-          >
-            {refreshing ? "Resetting…" : "Reset demo data"}
-          </button>
+          {authMode === "seed" || isDemoResetEnabled() ? (
+            <button
+              type="button"
+              className="btn"
+              disabled={refreshing}
+              onClick={() => void resetDemo()}
+            >
+              {refreshing ? "Resetting…" : "Reset demo data"}
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -199,7 +203,7 @@ export default function AdministrationPage() {
               <div key={p.id} className="admin-row">
                 <span>
                   <Link
-                    href={`/patients/${p.id}`}
+                    href={patientHref(p.id)}
                     className="text-link"
                     style={{ display: "inline" }}
                   >
@@ -285,7 +289,7 @@ export default function AdministrationPage() {
                       <>
                         {" · "}
                         <Link
-                          href={`/patients/${e.patientId}`}
+                          href={patientHref(e.patientId)}
                           className="text-link"
                           style={{ display: "inline" }}
                         >

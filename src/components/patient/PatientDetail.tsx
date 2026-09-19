@@ -65,7 +65,10 @@ export function PatientDetail({ patient }: { patient: Patient }) {
   const canAdminister = staff.role === "nurse" || staff.role === "doctor";
   const canAddNote = isClinician || staff.role === "admin";
 
-  const patientNumber = `DEMO-${1000 + Number(live.id.slice(1))}`;
+  const seedNumber = Number(live.id.slice(1));
+  const patientNumber = Number.isFinite(seedNumber)
+    ? `DEMO-${1000 + seedNumber}`
+    : `ID-${live.id.slice(0, 8)}`;
   const doctorName =
     allStaff.find((s) => s.id === live.doctorId)?.name ?? live.doctorId;
   const nurseName =

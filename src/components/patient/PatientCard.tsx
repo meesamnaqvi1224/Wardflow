@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Patient } from "@/lib/types";
 import { Badge } from "@/components/Badge";
+import { patientHref } from "@/lib/routes";
 
 /**
  * Compact patient card for the dashboard "needs attention" grid. Urgent and
@@ -8,7 +9,7 @@ import { Badge } from "@/components/Badge";
  */
 export function PatientCard({ patient }: { patient: Patient }) {
   return (
-    <Link href={`/patients/${patient.id}`} className={`patient-card ${patient.status}`}>
+    <Link href={patientHref(patient.id)} className={`patient-card ${patient.status}`}>
       <div className="patient-card-top">
         <div>
           <h3>{patient.name}</h3>

@@ -8,6 +8,7 @@ import { PatientCard } from "@/components/patient/PatientCard";
 import { PatientTable } from "@/components/patient/PatientTable";
 import { Timeline } from "@/components/Timeline";
 import { Badge } from "@/components/Badge";
+import { patientHref } from "@/lib/routes";
 
 export default function DashboardPage() {
   const { staff, data } = useSession();
@@ -114,7 +115,7 @@ export default function DashboardPage() {
               dueWork.map((row) => (
                 <Link
                   key={row.id}
-                  href={`/patients/${row.patientId}`}
+                  href={patientHref(row.patientId)}
                   className="task-row task-row-link"
                 >
                   <div className="row-top">

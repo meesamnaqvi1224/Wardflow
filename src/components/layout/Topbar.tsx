@@ -5,6 +5,7 @@ import { useSession } from "@/lib/session";
 import { RoleSwitcher } from "@/components/RoleSwitcher";
 import { AuthUserMenu } from "@/components/AuthUserMenu";
 import { PatientSearch } from "@/components/layout/PatientSearch";
+import { isDemoResetEnabled } from "@/lib/demo";
 
 /**
  * Top bar: mobile menu, live patient search, data actions, and identity.
@@ -13,7 +14,8 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
   const { staff, resetDemo, reload, refreshing, dataSource, authMode } =
     useSession();
 
-  const canReset = authMode === "seed" || staff.role === "admin";
+  const canReset =
+    authMode === "seed" || (staff.role === "admin" && isDemoResetEnabled());
 
   return (
     <header className="topbar">
