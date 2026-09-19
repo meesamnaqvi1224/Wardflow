@@ -43,6 +43,7 @@ next-env.d.ts
 
 # Capacitor / Android (mobile/)
 /mobile/node_modules/
+/mobile/www/
 /mobile/android/.gradle/
 /mobile/android/app/build/
 /mobile/android/build/

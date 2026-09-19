@@ -81,8 +81,10 @@ export function PatientSearch() {
       <input
         className="search"
         type="search"
+        role="combobox"
         placeholder="Search patients by name, room, or diagnosis..."
         aria-label="Search patients"
+        aria-autocomplete="list"
         aria-expanded={showPanel}
         aria-controls="patient-search-results"
         autoComplete="off"
