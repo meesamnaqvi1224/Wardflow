@@ -64,15 +64,24 @@ Use the **anon / publishable** key only (not service_role).
 5. Create demo users and link them to staff:
 
 ```bash
-node scripts/setup-demo-auth.mjs
-# optional custom password:
-# DEMO_PASSWORD='YourSecurePass1!' node scripts/setup-demo-auth.mjs
+# DEMO_PASSWORD is required: pick your own unique password (12+ chars)
+DEMO_PASSWORD='<your own password>' node scripts/setup-demo-auth.mjs
 ```
 
 6. Apply Phase 4 RLS (authenticated staff only):
 
    - Run `supabase/phase4_auth.sql` in the SQL editor.
    - Run `supabase/phase4_profile_edit.sql` so staff can edit their own profile.
+
+7. Optional Phase 5 SaaS foundation:
+
+   - Run `supabase/phase5_multi_hospital.sql` after Phase 4 is working.
+   - This adds `hospitals`, backfills the current demo as one hospital, adds
+     `hospital_id` to ward tables, and scopes RLS so staff only see their own
+     hospital's data.
+   - Then run `supabase/phase5b_tenant_integrity.sql` (composite foreign keys so
+     rows cannot reference another hospital's patients/staff, plus an audit-actor
+     check). It is untested against a live database; run it on a copy first.
 
 Data layer: `src/lib/supabase/ward.ts` (load, record vitals, alert status, reset).
 
@@ -84,9 +93,9 @@ Data layer: `src/lib/supabase/ward.ts` (load, record vitals, alert status, reset
 | `nurse@example.com` | Nurse Alex Morgan (`nurse-1`) | nurse |
 | `admin@example.com` | Jordan Lee (`admin-1`) | admin |
 
-Default shared password (from setup script): **`WardFlow!demo1`**
-
-Change it with `DEMO_PASSWORD=...` when running the setup script.
+The password is whatever you pass as `DEMO_PASSWORD` to the setup script; there
+is no default. Never reuse it for real accounts, and remove these demo accounts
+before putting any real data in the project.
 
 If the setup script hits **email rate limit**, wait a few minutes and re-run, or create the three users in **Authentication → Users** and run `supabase/phase4_link_demo_users.sql`.
 
@@ -96,6 +105,17 @@ If the setup script hits **email rate limit**, wait a few minutes and re-run, or
 - Acting staff comes from `staff.auth_user_id` → no role dropdown when signed in.
 - RLS requires a linked staff row; unlinked accounts see an error, not ward data.
 - Admin-only: Administration nav, demo reset.
+
+## Phase 5 notes
+
+- Hospitals are the SaaS tenant boundary.
+- Every staff, patient, alert, task, medication, note, timeline event, vital
+  reading, and audit event receives a `hospital_id`.
+- Supabase RLS uses the signed-in staff profile to resolve
+  `current_hospital_id()`, then filters all ward data to that hospital.
+- The prototype still uses text ids for compatibility. Before real multi-site
+  onboarding, patient/staff creation should use generated UUIDs or
+  hospital-scoped public codes to avoid duplicate ids across hospitals.
 
 ## Important
 

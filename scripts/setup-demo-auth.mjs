@@ -10,8 +10,8 @@
  *     OR re-run with a service role key (not stored in this repo)
  *
  * Usage:
- *   node scripts/setup-demo-auth.mjs
- *   DEMO_PASSWORD='YourSecurePass1!' node scripts/setup-demo-auth.mjs
+ *   (DEMO_PASSWORD is required; there is no default)
+ *   DEMO_PASSWORD='<your own 12+ char password>' node scripts/setup-demo-auth.mjs
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -41,7 +41,7 @@ function loadEnv() {
 const env = loadEnv();
 const url = env.NEXT_PUBLIC_SUPABASE_URL;
 const anon = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const password = process.env.DEMO_PASSWORD || "WardFlow!demo1";
+const password = process.env.DEMO_PASSWORD;
 
 // Use example.com — Supabase rejects many fake TLDs (e.g. .demo).
 const ACCOUNTS = [
@@ -67,12 +67,19 @@ if (!url || !anon) {
   process.exit(1);
 }
 
+if (!password || password.length < 12) {
+  console.error(
+    "Set DEMO_PASSWORD to a unique password of at least 12 characters, e.g.\n" +
+      "  DEMO_PASSWORD='choose-your-own' node scripts/setup-demo-auth.mjs",
+  );
+  process.exit(1);
+}
+
 const sb = createClient(url, anon, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
 console.log("Project:", new URL(url).host);
-console.log("Password for all demo accounts:", password);
 console.log("");
 
 const results = [];
@@ -166,9 +173,8 @@ if (ok === ACCOUNTS.length) {
 Next:
   1. In Supabase SQL editor, run supabase/phase4_auth.sql
   2. Sign in at /login with:
-       doctor@example.com / ${password}
-       nurse@example.com  / ${password}
-       admin@example.com  / ${password}
+       doctor@example.com, nurse@example.com, admin@example.com
+       (password: the DEMO_PASSWORD you supplied)
 `);
   process.exit(0);
 }

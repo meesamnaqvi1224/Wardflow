@@ -3,29 +3,29 @@
 --
 -- Create users first either via:
 --   node scripts/setup-demo-auth.mjs
--- or Authentication → Users → Add user (password: WardFlow!demo1)
+-- or Authentication → Users → Add user (use your own password)
 --
 -- Emails:
---   meesamnaqvi1224@gmail.com → doctor-1
---   ahsitmedia@gmail.com → nurse-1
---   meesamseowork@gmail.com  → admin-1
+--   doctor@example.com → doctor-1
+--   nurse@example.com → nurse-1
+--   admin@example.com  → admin-1
 
 update public.staff s
 set auth_user_id = u.id
 from auth.users u
-where u.email = 'meesamnaqvi1224@gmail.com'
+where u.email = 'doctor@example.com'
   and s.id = 'doctor-1';
 
 update public.staff s
 set auth_user_id = u.id
 from auth.users u
-where u.email = 'ahsitmedia@gmail.com'
+where u.email = 'nurse@example.com'
   and s.id = 'nurse-1';
 
 update public.staff s
 set auth_user_id = u.id
 from auth.users u
-where u.email = 'meesamseowork@gmail.com'
+where u.email = 'admin@example.com'
   and s.id = 'admin-1';
 
 -- Verify
