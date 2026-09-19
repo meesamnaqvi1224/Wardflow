@@ -80,6 +80,7 @@ export function Sidebar({
         <>
           <div className="nav-label">Manage</div>
           {renderItem({ href: "/administration", label: "Administration" })}
+          {renderItem({ href: "/hospital", label: "Hospital settings" })}
         </>
       ) : null}
       <Link href="/profile" className="sidebar-foot sidebar-foot-link" onClick={onNavigate}>

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "@/lib/session";
 
@@ -109,6 +110,12 @@ export function LoginForm() {
             </button>
           </form>
         )}
+
+        {!offline ? (
+          <p className="muted login-foot">
+            New here? <Link href="/signup">Create an account</Link>
+          </p>
+        ) : null}
 
         <p className="muted login-foot">
           Authorized care-team use only · Do not enter real patient data until

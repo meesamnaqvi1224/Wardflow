@@ -7,6 +7,9 @@ import { Toast } from "@/components/Toast";
 import { DemoBanner } from "./DemoBanner";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
+import { OnboardingScreen } from "@/components/onboarding/OnboardingScreen";
+
+const PUBLIC_PREFIXES = ["/login", "/signup"];
 
 /**
  * Persistent application chrome. Login route renders children only (no shell).
@@ -23,8 +26,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     reload,
     refreshing,
     authStatus,
-    authError,
-    signOut,
   } = useSession();
 
   // Close mobile nav on route change
@@ -32,15 +33,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setMobileNavOpen(false);
   }, [pathname]);
 
+  const isPublic = PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
+
   // Session expired / signed out while browsing → login
   useEffect(() => {
-    if (pathname.startsWith("/login")) return;
+    if (isPublic) return;
     if (authStatus === "signed_out") {
       router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     }
-  }, [authStatus, pathname, router]);
+  }, [authStatus, pathname, router, isPublic]);
 
-  if (pathname.startsWith("/login")) {
+  if (isPublic) {
     return (
       <>
         {children}
@@ -52,6 +55,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const blockingAuth = authStatus === "loading" || authStatus === "signed_out";
   const unconfigured = authStatus === "unconfigured";
   const noHospital = authStatus === "no_hospital";
+
+  // Signed in but not in a hospital yet: full-page onboarding, no app chrome.
+  if (noHospital) {
+    return (
+      <>
+        <OnboardingScreen />
+        {toast ? <Toast message={toast} onDismiss={clearToast} /> : null}
+      </>
+    );
+  }
 
   return (
     <>
@@ -81,27 +94,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY,
                   then rebuild.
                 </p>
-              </div>
-            ) : noHospital ? (
-              <div className="clinical-callout">
-                <strong>Your account is not linked to a hospital.</strong>
-                <p className="muted" style={{ margin: "8px 0 0" }}>
-                  {authError ??
-                    "Ask your hospital admin to invite this email address, or create a new hospital."}
-                </p>
-                <button
-                  type="button"
-                  className="btn"
-                  style={{ marginTop: 12 }}
-                  onClick={() => {
-                    void (async () => {
-                      await signOut();
-                      router.replace("/login");
-                    })();
-                  }}
-                >
-                  Sign out
-                </button>
               </div>
             ) : loadState === "loading" ? (
               <div className="empty loading-block">

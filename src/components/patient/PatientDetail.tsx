@@ -28,6 +28,7 @@ export function PatientDetail({ patient }: { patient: Patient }) {
   const {
     staff,
     allStaff,
+    wards,
     data,
     recordVitals,
     updatePatientProfile,
@@ -337,6 +338,7 @@ export function PatientDetail({ patient }: { patient: Patient }) {
         <EditPatientDrawer
           patient={live}
           staffList={allStaff}
+          wards={wards}
           canEditAssignments={canEditAssignments}
           onClose={() => setEditOpen(false)}
           onSubmit={async (input) => {

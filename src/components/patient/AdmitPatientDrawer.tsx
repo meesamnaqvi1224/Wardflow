@@ -1,24 +1,24 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import type { Patient, StaffMember, Ward } from "@/lib/types";
+import type { StaffMember, Ward } from "@/lib/types";
 
 /**
- * Side drawer to edit patient profile fields (demographics + care team).
- * Vitals stay on Record vitals — not edited here.
+ * Side drawer to admit a new patient. Status starts stable and is derived from
+ * alerts afterwards; vitals are recorded separately from the patient page.
  */
-export function EditPatientDrawer({
-  patient,
-  staffList,
+export function AdmitPatientDrawer({
   wards,
-  canEditAssignments,
+  staffList,
+  defaultDoctorId,
+  defaultNurseId,
   onClose,
   onSubmit,
 }: {
-  patient: Patient;
-  staffList: StaffMember[];
   wards: Ward[];
-  canEditAssignments: boolean;
+  staffList: StaffMember[];
+  defaultDoctorId?: string;
+  defaultNurseId?: string;
   onClose: () => void;
   onSubmit: (input: {
     name: string;
@@ -27,27 +27,22 @@ export function EditPatientDrawer({
     diagnosis: string;
     allergy: string;
     wardId: string | null;
-    doctorId: string;
-    nurseId: string;
-  }) => Promise<void> | void;
+    doctorId: string | null;
+    nurseId: string | null;
+  }) => Promise<{ error: string | null }>;
 }) {
   const titleId = useId();
-  // Only active staff can be assigned; a patient's current assignee is kept
-  // selectable even if they were since deactivated, so saving doesn't silently
-  // reassign the patient.
-  const assignable = (role: StaffMember["role"], current: string) =>
-    staffList.filter((s) => s.role === role && (s.active || s.id === current));
-  const doctors = assignable("doctor", patient.doctorId);
-  const nurses = assignable("nurse", patient.nurseId);
+  const doctors = staffList.filter((s) => s.role === "doctor" && s.active);
+  const nurses = staffList.filter((s) => s.role === "nurse" && s.active);
 
-  const [name, setName] = useState(patient.name);
-  const [age, setAge] = useState(String(patient.age));
-  const [room, setRoom] = useState(patient.room);
-  const [diagnosis, setDiagnosis] = useState(patient.diagnosis);
-  const [allergy, setAllergy] = useState(patient.allergy);
-  const [wardId, setWardId] = useState(patient.wardId ?? "");
-  const [doctorId, setDoctorId] = useState(patient.doctorId);
-  const [nurseId, setNurseId] = useState(patient.nurseId);
+  const [name, setName] = useState("");
+  const [age, setAge] = useState("");
+  const [room, setRoom] = useState("");
+  const [diagnosis, setDiagnosis] = useState("");
+  const [allergy, setAllergy] = useState("");
+  const [wardId, setWardId] = useState(wards.length === 1 ? wards[0].id : "");
+  const [doctorId, setDoctorId] = useState(defaultDoctorId ?? "");
+  const [nurseId, setNurseId] = useState(defaultNurseId ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,25 +58,31 @@ export function EditPatientDrawer({
     e.preventDefault();
     setError(null);
     const ageNum = Number(age);
-    if (!name.trim() || !room.trim() || !diagnosis.trim() || !Number.isFinite(ageNum)) {
-      setError("Name, age, room, and diagnosis are required.");
+    if (!name.trim() || !room.trim() || !diagnosis.trim()) {
+      setError("Name, room, and diagnosis are required.");
+      return;
+    }
+    if (!Number.isInteger(ageNum) || ageNum < 1 || ageNum > 149) {
+      setError("Age must be a whole number from 1 to 149.");
       return;
     }
     setSaving(true);
     try {
-      await onSubmit({
+      const result = await onSubmit({
         name: name.trim(),
         age: ageNum,
         room: room.trim(),
         diagnosis: diagnosis.trim(),
         allergy: allergy.trim() || "None recorded",
         wardId: wardId || null,
-        doctorId,
-        nurseId,
+        doctorId: doctorId || null,
+        nurseId: nurseId || null,
       });
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
       onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Save failed");
     } finally {
       setSaving(false);
     }
@@ -98,9 +99,9 @@ export function EditPatientDrawer({
       >
         <div className="drawer-head">
           <div>
-            <p className="eyebrow">Patient profile</p>
-            <h2 id={titleId}>Edit · {patient.name}</h2>
-            <p className="muted">Update demographics and care-team assignment.</p>
+            <p className="eyebrow">New patient</p>
+            <h2 id={titleId}>Admit patient</h2>
+            <p className="muted">Record vitals from the patient page after admission.</p>
           </div>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
             ×
@@ -110,18 +111,19 @@ export function EditPatientDrawer({
         <form onSubmit={(e) => void handleSubmit(e)}>
           <div className="form-grid">
             <div className="field full">
-              <label htmlFor="edit-name">Full name</label>
+              <label htmlFor="admit-name">Full name</label>
               <input
-                id="edit-name"
+                id="admit-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
+                autoFocus
               />
             </div>
             <div className="field">
-              <label htmlFor="edit-age">Age</label>
+              <label htmlFor="admit-age">Age</label>
               <input
-                id="edit-age"
+                id="admit-age"
                 type="number"
                 min={1}
                 max={149}
@@ -131,52 +133,35 @@ export function EditPatientDrawer({
               />
             </div>
             <div className="field">
-              <label htmlFor="edit-room">Room</label>
+              <label htmlFor="admit-room">Room</label>
               <input
-                id="edit-room"
+                id="admit-room"
                 value={room}
                 onChange={(e) => setRoom(e.target.value)}
                 required
               />
             </div>
             <div className="field full">
-              <label htmlFor="edit-diagnosis">Primary diagnosis</label>
+              <label htmlFor="admit-diagnosis">Primary diagnosis</label>
               <input
-                id="edit-diagnosis"
+                id="admit-diagnosis"
                 value={diagnosis}
                 onChange={(e) => setDiagnosis(e.target.value)}
                 required
               />
             </div>
             <div className="field full">
-              <label htmlFor="edit-allergy">Allergy</label>
+              <label htmlFor="admit-allergy">Allergy</label>
               <input
-                id="edit-allergy"
+                id="admit-allergy"
                 value={allergy}
                 onChange={(e) => setAllergy(e.target.value)}
+                placeholder="None recorded"
               />
-            </div>
-            <div className="field">
-              <label htmlFor="edit-status">Status</label>
-              <input
-                id="edit-status"
-                value={`${patient.status} (from open alerts)`}
-                readOnly
-                disabled
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="edit-admitted">Admitted</label>
-              <input id="edit-admitted" value={patient.admitted} readOnly disabled />
             </div>
             <div className="field full">
-              <label htmlFor="edit-ward">Ward</label>
-              <select
-                id="edit-ward"
-                value={wardId}
-                onChange={(e) => setWardId(e.target.value)}
-                disabled={!canEditAssignments}
-              >
+              <label htmlFor="admit-ward">Ward</label>
+              <select id="admit-ward" value={wardId} onChange={(e) => setWardId(e.target.value)}>
                 <option value="">No ward</option>
                 {wards.map((w) => (
                   <option key={w.id} value={w.id}>
@@ -186,12 +171,11 @@ export function EditPatientDrawer({
               </select>
             </div>
             <div className="field">
-              <label htmlFor="edit-doctor">Primary doctor</label>
+              <label htmlFor="admit-doctor">Primary doctor</label>
               <select
-                id="edit-doctor"
+                id="admit-doctor"
                 value={doctorId}
                 onChange={(e) => setDoctorId(e.target.value)}
-                disabled={!canEditAssignments}
               >
                 <option value="">Unassigned</option>
                 {doctors.map((d) => (
@@ -202,12 +186,11 @@ export function EditPatientDrawer({
               </select>
             </div>
             <div className="field">
-              <label htmlFor="edit-nurse">Primary nurse</label>
+              <label htmlFor="admit-nurse">Primary nurse</label>
               <select
-                id="edit-nurse"
+                id="admit-nurse"
                 value={nurseId}
                 onChange={(e) => setNurseId(e.target.value)}
-                disabled={!canEditAssignments}
               >
                 <option value="">Unassigned</option>
                 {nurses.map((n) => (
@@ -230,7 +213,7 @@ export function EditPatientDrawer({
               Cancel
             </button>
             <button type="submit" className="btn primary" disabled={saving}>
-              {saving ? "Saving…" : "Save patient"}
+              {saving ? "Admitting…" : "Admit patient"}
             </button>
           </div>
         </form>

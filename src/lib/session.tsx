@@ -82,6 +82,8 @@ interface SessionValue {
   }) => Promise<Result>;
   /** Re-check the account, e.g. after verifying email or accepting an invite. */
   refreshAccount: () => Promise<void>;
+  /** Re-send the signup confirmation email to the signed-in user. */
+  resendConfirmation: () => Promise<Result>;
   createHospital: (input: {
     hospitalName: string;
     adminName: string;
@@ -132,6 +134,7 @@ interface SessionValue {
       room: string;
       diagnosis: string;
       allergy: string;
+      wardId?: string | null;
       doctorId: string;
       nurseId: string;
     },
@@ -407,6 +410,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       const { data: result, error } = await sb.auth.signUp({
         email: trimmed,
         password,
+        // The confirmation link returns here; the URL must be in Supabase
+        // Auth's redirect allow-list.
+        options: { emailRedirectTo: window.location.origin },
       });
       if (error) return { error: error.message, needsConfirmation: false };
       // No session means Supabase is waiting for the email to be verified.
@@ -414,6 +420,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     },
     [],
   );
+
+  const resendConfirmation = useCallback(async (): Promise<Result> => {
+    const sb = createSupabaseBrowserClient();
+    if (!sb || !user?.email) return { error: "Not signed in." };
+    const { error } = await sb.auth.resend({
+      type: "signup",
+      email: user.email,
+      options: { emailRedirectTo: window.location.origin },
+    });
+    return { error: error ? error.message : null };
+  }, [user]);
 
   const signOut = useCallback(async () => {
     const sb = createSupabaseBrowserClient();
@@ -596,6 +613,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         room: string;
         diagnosis: string;
         allergy: string;
+        wardId?: string | null;
         doctorId: string;
         nurseId: string;
       },
@@ -618,7 +636,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             ...input,
             age: Math.round(input.age),
             allergy: input.allergy.trim() || "None recorded",
-            wardId: existing.wardId,
+            // Leave the ward alone unless the caller explicitly sets one.
+            wardId: input.wardId === undefined ? existing.wardId : input.wardId,
           }),
         "Patient profile saved",
       );
@@ -731,6 +750,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       signOut,
       changePassword,
       refreshAccount,
+      resendConfirmation,
       createHospital,
       recordVitals,
       acknowledgeAlert,
@@ -774,6 +794,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       signOut,
       changePassword,
       refreshAccount,
+      resendConfirmation,
       createHospital,
       recordVitals,
       acknowledgeAlert,
