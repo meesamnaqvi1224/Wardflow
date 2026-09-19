@@ -49,7 +49,9 @@ export function PatientTable({
                 <Badge tone={p.status} />
               </td>
               <td>
-                SpO₂ {p.vitals.oxygen}% · HR {p.vitals.heartRate}
+                {p.vitals.oxygen === null
+                  ? "No vitals yet"
+                  : `SpO₂ ${p.vitals.oxygen}% · HR ${p.vitals.heartRate ?? "—"}`}
               </td>
               <td>{p.diagnosis}</td>
               <td>

@@ -29,6 +29,8 @@ export function StaffFormDrawer({
   const [role, setRole] = useState<Role>(initial?.role ?? "nurse");
   const [detail, setDetail] = useState(initial?.detail ?? "");
   const [initials, setInitials] = useState(initial?.initials ?? "");
+  const [invitedEmail, setInvitedEmail] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,6 +57,11 @@ export function StaffFormDrawer({
       });
       if (result.error) {
         setError(result.error);
+        return;
+      }
+      if (mode === "create") {
+        // No email is sent automatically: tell the admin how the person joins.
+        setInvitedEmail(email.trim().toLowerCase());
         return;
       }
       onClose();
@@ -89,6 +96,44 @@ export function StaffFormDrawer({
           </button>
         </div>
 
+        {invitedEmail ? (
+          <div>
+            <div className="clinical-callout">
+              <strong>Invitation created for {invitedEmail}.</strong>
+              <p style={{ margin: "8px 0 0" }}>
+                WardFlow does not send an email for this yet. Send them the link below.
+                They must sign up with <strong>exactly this email</strong>, verify it, and
+                they will join your hospital as a {role}.
+              </p>
+            </div>
+            <div className="field full" style={{ marginTop: 14 }}>
+              <label htmlFor="invite-link">Sign-up link</label>
+              <input
+                id="invite-link"
+                readOnly
+                value={`${typeof window === "undefined" ? "" : window.location.origin}/signup`}
+                onFocus={(e) => e.currentTarget.select()}
+              />
+            </div>
+            <div className="drawer-actions">
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  void navigator.clipboard
+                    ?.writeText(`${window.location.origin}/signup`)
+                    .then(() => setCopied(true))
+                    .catch(() => setCopied(false));
+                }}
+              >
+                {copied ? "Copied" : "Copy link"}
+              </button>
+              <button type="button" className="btn primary" onClick={onClose}>
+                Done
+              </button>
+            </div>
+          </div>
+        ) : (
         <form onSubmit={(e) => void handleSubmit(e)}>
           <div className="form-grid">
             {mode === "create" ? (
@@ -163,6 +208,7 @@ export function StaffFormDrawer({
             </button>
           </div>
         </form>
+        )}
       </aside>
     </div>
   );

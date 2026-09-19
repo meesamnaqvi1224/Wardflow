@@ -101,7 +101,8 @@ export function PatientDetail({ patient }: { patient: Patient }) {
               Admitted {live.admitted} · Primary diagnosis: {live.diagnosis}
             </p>
             <p className="muted" style={{ marginTop: 6, fontSize: 13 }}>
-              Care team: {doctorName} · {nurseName}
+              Care team: {live.doctorId ? doctorName : "No doctor assigned"} ·{" "}
+              {live.nurseId ? nurseName : "No nurse assigned"}
             </p>
           </div>
           <div>
@@ -241,8 +242,9 @@ export function PatientDetail({ patient }: { patient: Patient }) {
           </div>
           <VitalsGrid vitals={live.vitals} />
           <div className="clinical-callout">
-            Recordings save to the connected data store (Supabase when configured). Abnormal
-            values automatically create alerts and timeline entries.
+            {isClinician
+              ? "Abnormal values automatically create alerts and timeline entries, using your hospital's alert limits."
+              : "Only doctors and nurses can record vitals. Invite a doctor or nurse from Administration, or sign in with a clinical account."}
           </div>
         </div>
       ) : null}

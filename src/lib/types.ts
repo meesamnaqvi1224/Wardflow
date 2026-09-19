@@ -111,6 +111,15 @@ export interface Vitals {
   respiratory: number; // breaths/min
 }
 
+/** A patient's latest reading. Every field is null until vitals are first recorded. */
+export interface PatientVitals {
+  oxygen: number | null;
+  heartRate: number | null;
+  bp: string | null;
+  temperature: number | null;
+  respiratory: number | null;
+}
+
 export interface Patient {
   id: string;
   wardId: string | null;
@@ -123,7 +132,7 @@ export interface Patient {
   doctorId: string;
   nurseId: string;
   admitted: string;
-  vitals: Vitals;
+  vitals: PatientVitals;
   updated: string;
 }
 

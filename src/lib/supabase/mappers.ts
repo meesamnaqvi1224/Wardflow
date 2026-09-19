@@ -227,11 +227,11 @@ export function mapPatient(row: PatientRow): Patient {
     admitted: formatAdmitted(row.admitted_on),
     updated: formatWhen(row.updated_at),
     vitals: {
-      oxygen: Number(row.oxygen ?? 0),
-      heartRate: Number(row.heart_rate ?? 0),
-      bp: row.bp ?? "—/—",
-      temperature: Number(row.temperature ?? 0),
-      respiratory: Number(row.respiratory ?? 0),
+      oxygen: row.oxygen === null ? null : Number(row.oxygen),
+      heartRate: row.heart_rate === null ? null : Number(row.heart_rate),
+      bp: row.bp,
+      temperature: row.temperature === null ? null : Number(row.temperature),
+      respiratory: row.respiratory === null ? null : Number(row.respiratory),
     },
   };
 }

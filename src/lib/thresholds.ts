@@ -68,6 +68,24 @@ export const THRESHOLD_GROUPS: ThresholdGroup[] = [
 
 export type ThresholdForm = Record<string, string>;
 
+export type EffectiveThresholds = {
+  [G in Group]: Record<string, number>;
+};
+
+/** Hospital overrides merged over the defaults: what the server actually applies. */
+export function effectiveThresholds(saved: AlertThresholds | undefined): EffectiveThresholds {
+  const out = {} as EffectiveThresholds;
+  for (const g of THRESHOLD_GROUPS) {
+    const savedGroup = (saved?.[g.group] ?? {}) as Record<string, number | undefined>;
+    out[g.group] = {};
+    for (const f of g.fields) {
+      const v = savedGroup[f.key];
+      out[g.group][f.key] = typeof v === "number" ? v : defaultFor(g.group, f.key);
+    }
+  }
+  return out;
+}
+
 const fieldId = (group: string, key: string) => `${group}.${key}`;
 
 export function defaultFor(group: Group, key: string): number {

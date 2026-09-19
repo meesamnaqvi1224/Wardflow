@@ -7,7 +7,8 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "setup:demo-auth": "node scripts/setup-demo-auth.mjs"
+    "setup:demo-auth": "node scripts/setup-demo-auth.mjs",
+    "test:e2e": "node --no-warnings --experimental-strip-types --import ./scripts/e2e/register.mjs scripts/e2e/flow.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

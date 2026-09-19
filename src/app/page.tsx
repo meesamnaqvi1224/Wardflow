@@ -55,6 +55,38 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {data.patients.length === 0 ? (
+        <section className="section">
+          <div className="panel panel-pad">
+            <h2>Get started</h2>
+            <p className="muted" style={{ marginBottom: 12 }}>
+              {hospital?.name ?? "Your hospital"} has no patients yet. A few steps to set it up:
+            </p>
+            <ol className="muted" style={{ paddingLeft: 20, lineHeight: 1.9, margin: 0 }}>
+              <li>
+                <Link href="/patients" className="text-link" style={{ display: "inline" }}>
+                  Admit your first patient
+                </Link>
+              </li>
+              {staff.role === "admin" ? (
+                <>
+                  <li>
+                    <Link href="/administration" className="text-link" style={{ display: "inline" }}>
+                      Invite your doctors and nurses
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/hospital" className="text-link" style={{ display: "inline" }}>
+                      Review your wards and alert limits
+                    </Link>
+                  </li>
+                </>
+              ) : null}
+            </ol>
+          </div>
+        </section>
+      ) : null}
+
       <div className="stats">
         <Link href="/patients" className="stat-link">
           <StatCard label="Ward patients" value={summary.patients} note="Currently admitted" />
@@ -87,7 +119,11 @@ export default function DashboardPage() {
           {attention.length ? (
             attention.map((p) => <PatientCard key={p.id} patient={p} />)
           ) : (
-            <div className="empty panel panel-pad">All patients are stable right now.</div>
+            <div className="empty panel panel-pad">
+              {data.patients.length === 0
+                ? "No patients admitted yet."
+                : "All patients are stable right now."}
+            </div>
           )}
         </div>
       </section>

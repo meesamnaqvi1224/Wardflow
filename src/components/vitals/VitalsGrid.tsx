@@ -1,49 +1,85 @@
-import type { PatientStatus, Vitals } from "@/lib/types";
-import { Badge } from "@/components/Badge";
+"use client";
 
-/** Colour-code a single reading against the ward thresholds. */
-function tone(
-  value: number,
-  { urgentLow, warnLow, warnHigh, urgentHigh }: {
-    urgentLow?: number;
-    warnLow?: number;
-    warnHigh?: number;
-    urgentHigh?: number;
-  },
-): PatientStatus {
-  if ((urgentLow !== undefined && value < urgentLow) || (urgentHigh !== undefined && value > urgentHigh))
+import type { PatientStatus, PatientVitals } from "@/lib/types";
+import { Badge } from "@/components/Badge";
+import { useSession } from "@/lib/session";
+import { effectiveThresholds } from "@/lib/thresholds";
+
+type Bounds = {
+  urgentLow?: number;
+  warnLow?: number;
+  warnHigh?: number;
+  urgentHigh?: number;
+};
+
+/** Colour-code a single reading; mirrors the server's alert rules. */
+function tone(value: number, b: Bounds): PatientStatus {
+  if ((b.urgentLow !== undefined && value < b.urgentLow) || (b.urgentHigh !== undefined && value > b.urgentHigh))
     return "urgent";
-  if ((warnLow !== undefined && value < warnLow) || (warnHigh !== undefined && value > warnHigh))
+  if ((b.warnLow !== undefined && value < b.warnLow) || (b.warnHigh !== undefined && value > b.warnHigh))
     return "warning";
   return "stable";
 }
 
 /**
- * Grid of the five tracked vitals, each colour-coded by acuity. Blood pressure
- * is shown without a computed tone (needs range parsing we defer to Phase 6).
+ * Grid of the five tracked vitals, colour-coded against this hospital's own
+ * alert limits. Blood pressure has no computed tone. A reading that has never
+ * been recorded shows "Not recorded" instead of a misleading zero.
  */
-export function VitalsGrid({ vitals }: { vitals: Vitals }) {
-  const readings: { label: string; value: string; tone: PatientStatus }[] = [
+export function VitalsGrid({ vitals }: { vitals: PatientVitals }) {
+  const { hospital } = useSession();
+  const t = effectiveThresholds(hospital?.settings.alertThresholds);
+
+  const readings: { label: string; value: string | null; tone: PatientStatus }[] = [
     {
       label: "Oxygen saturation",
-      value: `${vitals.oxygen}%`,
-      tone: tone(vitals.oxygen, { urgentLow: 90, warnLow: 95 }),
+      value: vitals.oxygen === null ? null : `${vitals.oxygen}%`,
+      tone:
+        vitals.oxygen === null
+          ? "stable"
+          : tone(vitals.oxygen, { urgentLow: t.oxygen.urgentBelow, warnLow: t.oxygen.warningBelow }),
     },
     {
       label: "Heart rate",
-      value: `${vitals.heartRate} bpm`,
-      tone: tone(vitals.heartRate, { urgentLow: 40, warnLow: 50, warnHigh: 100, urgentHigh: 130 }),
+      value: vitals.heartRate === null ? null : `${vitals.heartRate} bpm`,
+      tone:
+        vitals.heartRate === null
+          ? "stable"
+          : tone(vitals.heartRate, {
+              urgentLow: t.heartRate.urgentLow,
+              warnLow: t.heartRate.warningLow,
+              warnHigh: t.heartRate.warningHigh,
+              urgentHigh: t.heartRate.urgentHigh,
+            }),
     },
-    { label: "Blood pressure", value: `${vitals.bp} mmHg`, tone: "stable" },
+    {
+      label: "Blood pressure",
+      value: vitals.bp === null ? null : `${vitals.bp} mmHg`,
+      tone: "stable",
+    },
     {
       label: "Temperature",
-      value: `${vitals.temperature}°C`,
-      tone: tone(vitals.temperature, { warnHigh: 38, urgentHigh: 39.5 }),
+      value: vitals.temperature === null ? null : `${vitals.temperature}°C`,
+      tone:
+        vitals.temperature === null
+          ? "stable"
+          : tone(vitals.temperature, {
+              warnHigh: t.temperature.warningAbove,
+              urgentHigh: t.temperature.urgentAbove,
+            }),
     },
     {
       label: "Respiratory rate",
-      value: `${vitals.respiratory} /min`,
-      tone: tone(vitals.respiratory, { urgentLow: 8, warnLow: 10, warnHigh: 22, urgentHigh: 30 }),
+      value: vitals.respiratory === null ? null : `${vitals.respiratory} /min`,
+      tone:
+        vitals.respiratory === null
+          ? "stable"
+          : tone(vitals.respiratory, {
+              urgentLow: t.respiratory.urgentLow,
+              warnLow: t.respiratory.warningLow,
+              warnHigh: t.respiratory.warningHigh,
+              urgentHigh: t.respiratory.urgentHigh,
+            }),
     },
   ];
 
@@ -53,8 +89,17 @@ export function VitalsGrid({ vitals }: { vitals: Vitals }) {
         <div className="vital" key={r.label}>
           <span className="vital-label">{r.label}</span>
           <div className="vital-value">
-            <strong>{r.value}</strong>
-            <Badge tone={r.tone} />
+            {r.value === null ? (
+              <>
+                <strong className="muted">Not recorded</strong>
+                <Badge tone="neutral" label="no reading" />
+              </>
+            ) : (
+              <>
+                <strong>{r.value}</strong>
+                <Badge tone={r.tone} />
+              </>
+            )}
           </div>
         </div>
       ))}

@@ -42,7 +42,7 @@ export function Sidebar({
     },
     { href: "/medications", label: "Medications" },
     { href: "/profile", label: "My profile" },
-    { href: "/settings", label: "Settings" },
+    { href: "/settings", label: "Account settings" },
   ];
 
   const isActive = (href: string) => {

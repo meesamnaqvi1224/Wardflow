@@ -21,9 +21,15 @@ export function PatientCard({ patient }: { patient: Patient }) {
       </div>
       <p>{patient.diagnosis}</p>
       <div className="patient-meta">
-        <span>SpO₂ {patient.vitals.oxygen}%</span>
-        <span>HR {patient.vitals.heartRate}</span>
-        <span>{patient.vitals.temperature}°C</span>
+        {patient.vitals.oxygen === null ? (
+          <span>No vitals recorded yet</span>
+        ) : (
+          <>
+            <span>SpO₂ {patient.vitals.oxygen}%</span>
+            <span>HR {patient.vitals.heartRate ?? "—"}</span>
+            <span>{patient.vitals.temperature ?? "—"}°C</span>
+          </>
+        )}
       </div>
     </Link>
   );

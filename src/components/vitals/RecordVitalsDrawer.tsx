@@ -21,14 +21,15 @@ export function RecordVitalsDrawer({
   onSubmit: (vitals: Vitals, note: string) => void | Promise<void>;
 }) {
   const titleId = useId();
-  const { systolic: initSys, diastolic: initDia } = parseBp(patient.vitals.bp);
+  const { systolic: initSys, diastolic: initDia } = parseBp(patient.vitals.bp ?? "");
+  const initial = (v: number | null) => (v === null ? "" : String(v));
 
-  const [oxygen, setOxygen] = useState(String(patient.vitals.oxygen));
-  const [heartRate, setHeartRate] = useState(String(patient.vitals.heartRate));
+  const [oxygen, setOxygen] = useState(initial(patient.vitals.oxygen));
+  const [heartRate, setHeartRate] = useState(initial(patient.vitals.heartRate));
   const [systolic, setSystolic] = useState(initSys);
   const [diastolic, setDiastolic] = useState(initDia);
-  const [temperature, setTemperature] = useState(String(patient.vitals.temperature));
-  const [respiratory, setRespiratory] = useState(String(patient.vitals.respiratory));
+  const [temperature, setTemperature] = useState(initial(patient.vitals.temperature));
+  const [respiratory, setRespiratory] = useState(initial(patient.vitals.respiratory));
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -101,7 +102,7 @@ export function RecordVitalsDrawer({
           <div>
             <p className="eyebrow">Clinical entry</p>
             <h2 id={titleId}>Record vitals · {patient.name}</h2>
-            <p className="muted">Values are checked against demonstration thresholds.</p>
+            <p className="muted">Values are checked against the alert limits set for this hospital.</p>
           </div>
           <button
             type="button"
