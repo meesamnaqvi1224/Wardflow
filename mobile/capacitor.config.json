@@ -2,17 +2,6 @@
   "appId": "meesam.wardflow",
   "appName": "WardFlow",
   "webDir": "www",
-  "server": {
-    "url": "https://wardflow-meesam1.vercel.app",
-    "allowNavigation": [
-      "wardflow-meesam1.vercel.app",
-      "wardflow.vercel.app",
-      "*.vercel.app",
-      "*.supabase.co",
-      "amrvuhjktrffcmnuihgk.supabase.co"
-    ],
-    "cleartext": false
-  },
   "android": {
     "allowMixedContent": false,
     "backgroundColor": "#f5f7f5"

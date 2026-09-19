@@ -1,18 +1,18 @@
-"use client";
-
-import { use } from "react";
 import Link from "next/link";
-import { useSession } from "@/lib/session";
 import { PatientDetail } from "@/components/patient/PatientDetail";
+import { SEED } from "@/lib/seed";
 
-export default function PatientPage({
+export function generateStaticParams() {
+  return SEED.patients.map((p) => ({ id: p.id }));
+}
+
+export default async function PatientPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = use(params);
-  const { data } = useSession();
-  const patient = data.patients.find((p) => p.id === id);
+  const { id } = await params;
+  const patient = SEED.patients.find((p) => p.id === id);
 
   if (!patient) {
     return (
