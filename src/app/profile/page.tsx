@@ -8,7 +8,7 @@ import { useSession } from "@/lib/session";
  * Role is read-only (admin-managed). Settings (password, etc.) come later.
  */
 export default function ProfilePage() {
-  const { staff, user, authMode, updateStaffProfile, dataSource } = useSession();
+  const { staff, user, hospital, updateStaffProfile } = useSession();
   const [name, setName] = useState(staff.name);
   const [detail, setDetail] = useState(staff.detail);
   const [initials, setInitials] = useState(staff.initials);
@@ -77,16 +77,12 @@ export default function ProfilePage() {
             {staff.role}
             {staff.detail ? ` · ${staff.detail}` : null}
           </p>
-          {authMode === "auth" && user?.email ? (
+          {user?.email ? (
             <p className="muted" style={{ fontSize: 13 }}>
               Signed in as <strong style={{ color: "var(--ink)" }}>{user.email}</strong>
+              {hospital ? ` · ${hospital.name}` : null}
             </p>
-          ) : (
-            <p className="muted" style={{ fontSize: 13 }}>
-              Local demo session
-              {dataSource === "seed" ? " · seed data" : null}
-            </p>
-          )}
+          ) : null}
         </div>
 
         <div className="panel panel-pad">

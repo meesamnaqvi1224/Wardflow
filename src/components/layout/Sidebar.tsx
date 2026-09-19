@@ -21,7 +21,7 @@ export function Sidebar({
   onNavigate: () => void;
 }) {
   const pathname = usePathname();
-  const { staff, data } = useSession();
+  const { staff, data, hospital } = useSession();
 
   // Badge only for work that still needs attention — never render a red "0".
   const openTasks = data.tasks.filter((t) => t.status === "open").length;
@@ -83,7 +83,7 @@ export function Sidebar({
         </>
       ) : null}
       <Link href="/profile" className="sidebar-foot sidebar-foot-link" onClick={onNavigate}>
-        <small>Medical Ward A · Day Shift</small>
+        <small>{hospital?.name ?? "WardFlow"}</small>
         <strong>{staff.name}</strong>
         <span className="sidebar-foot-action">View profile</span>
       </Link>

@@ -1,62 +1,89 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
-  Alert,
+  AlertStatus,
   AuditEvent,
-  Medication,
-  Note,
-  Patient,
-  PatientStatus,
+  Hospital,
+  HospitalInvite,
+  HospitalSettings,
+  Role,
   StaffMember,
-  Task,
-  TimelineEvent,
+  TaskPriority,
   Vitals,
+  Ward,
   WardData,
 } from "@/lib/types";
-import { SEED, STAFF } from "@/lib/seed";
 import {
   buildWardData,
   mapAudit,
+  mapHospital,
+  mapInvite,
   mapStaff,
+  mapWard,
   type AlertRow,
   type AuditRow,
+  type HospitalRow,
+  type InviteRow,
   type MedicationRow,
   type NoteRow,
   type PatientRow,
   type StaffRow,
   type TaskRow,
   type TimelineRow,
+  type WardRow,
 } from "./mappers";
-import { createSupabaseBrowserClient, isSupabaseConfigured } from "./client";
+import { createSupabaseBrowserClient } from "./client";
+
+/**
+ * Data layer for the v2 multi-hospital schema (supabase/v2).
+ *
+ * Reads are plain selects; Row Level Security limits every table to the
+ * signed-in user's hospital, so no query here filters by hospital. Every write
+ * is a call to a database function (supabase/v2/02_onboarding.sql and
+ * 03_workflows.sql) which checks the caller's role, runs in one transaction,
+ * and writes the timeline and audit rows itself. The client never inserts or
+ * updates tables directly (it has no privilege to).
+ */
 
 export type WardBundle = {
+  hospital: Hospital;
+  wards: Ward[];
   staff: StaffMember[];
   data: WardData;
-  source: "supabase" | "seed";
 };
 
-function requireClient(): SupabaseClient {
-  const client = createSupabaseBrowserClient();
-  if (!client) throw new Error("Supabase is not configured");
-  return client;
+function client(): SupabaseClient {
+  const sb = createSupabaseBrowserClient();
+  if (!sb) throw new Error("Supabase is not configured");
+  return sb;
 }
 
-export function getDataSource(): "supabase" | "seed" {
-  return isSupabaseConfigured() ? "supabase" : "seed";
+/** Call a database function; throws an Error carrying the server's message. */
+async function rpc<T>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
+  const { data, error } = await client().rpc(fn, args);
+  if (error) throw new Error(error.message);
+  return data as T;
 }
 
-/** Load full ward snapshot from Supabase, or fall back to local seed. */
+const STAFF_COLUMNS = "id,name,role,detail,initials,auth_user_id,active";
+
+/** The staff row linked to an auth user, or null if none is visible to them. */
+export async function fetchStaffForUser(userId: string): Promise<StaffMember | null> {
+  const { data, error } = await client()
+    .from("staff")
+    .select(STAFF_COLUMNS)
+    .eq("auth_user_id", userId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? mapStaff(data as StaffRow) : null;
+}
+
+/** Load the signed-in user's hospital, wards, staff and ward data. */
 export async function loadWardBundle(): Promise<WardBundle> {
-  if (!isSupabaseConfigured()) {
-    return {
-      staff: structuredClone(STAFF),
-      data: structuredClone(SEED),
-      source: "seed",
-    };
-  }
-
-  const sb = requireClient();
+  const sb = client();
 
   const [
+    hospitalRes,
+    wardsRes,
     staffRes,
     patientsRes,
     alertsRes,
@@ -65,7 +92,9 @@ export async function loadWardBundle(): Promise<WardBundle> {
     notesRes,
     timelineRes,
   ] = await Promise.all([
-    sb.from("staff").select("id,name,role,detail,initials,auth_user_id").order("name"),
+    sb.from("hospitals").select("id,name,slug,plan,status,settings").maybeSingle(),
+    sb.from("wards").select("id,name").order("name"),
+    sb.from("staff").select(STAFF_COLUMNS).order("name"),
     sb.from("patients").select("*").order("room"),
     sb.from("alerts").select("*").order("created_at", { ascending: false }),
     sb.from("tasks").select("*").order("created_at", { ascending: false }),
@@ -79,6 +108,8 @@ export async function loadWardBundle(): Promise<WardBundle> {
   ]);
 
   const errors = [
+    hospitalRes.error,
+    wardsRes.error,
     staffRes.error,
     patientsRes.error,
     alertsRes.error,
@@ -87,16 +118,17 @@ export async function loadWardBundle(): Promise<WardBundle> {
     notesRes.error,
     timelineRes.error,
   ].filter(Boolean);
-
   if (errors.length) {
     throw new Error(errors.map((e) => e!.message).join("; "));
   }
-
-  const staffRows = (staffRes.data ?? []) as StaffRow[];
-  const staff = staffRows.length ? staffRows.map(mapStaff) : structuredClone(STAFF);
+  if (!hospitalRes.data) {
+    throw new Error("No hospital is linked to this account.");
+  }
 
   return {
-    staff,
+    hospital: mapHospital(hospitalRes.data as HospitalRow),
+    wards: ((wardsRes.data ?? []) as WardRow[]).map(mapWard),
+    staff: ((staffRes.data ?? []) as StaffRow[]).map(mapStaff),
     data: buildWardData({
       patients: (patientsRes.data ?? []) as PatientRow[],
       alerts: (alertsRes.data ?? []) as AlertRow[],
@@ -105,574 +137,259 @@ export async function loadWardBundle(): Promise<WardBundle> {
       notes: (notesRes.data ?? []) as NoteRow[],
       timeline: (timelineRes.data ?? []) as TimelineRow[],
     }),
-    source: "supabase",
   };
 }
 
-/** Update staff display fields (name, detail, initials). Role is not changed here. */
-export async function persistStaffProfile(args: {
-  staffId: string;
-  name: string;
-  detail: string;
-  initials: string;
-}): Promise<void> {
-  if (!isSupabaseConfigured()) return;
-  const sb = requireClient();
-  const { error } = await sb
-    .from("staff")
-    .update({
-      name: args.name,
-      detail: args.detail,
-      initials: args.initials,
-    })
-    .eq("id", args.staffId);
-  if (error) throw new Error(error.message);
-}
-
-/** Admin create staff profile (auth link is optional / separate). */
-export async function persistCreateStaff(member: StaffMember): Promise<void> {
-  if (!isSupabaseConfigured()) return;
-  const sb = requireClient();
-  const { error } = await sb.from("staff").insert({
-    id: member.id,
-    name: member.name,
-    role: member.role,
-    detail: member.detail,
-    initials: member.initials,
-    auth_user_id: member.authUserId ?? null,
-  });
-  if (error) throw new Error(error.message);
-}
-
-/** Admin update staff fields including role. */
-export async function persistUpdateStaff(member: StaffMember): Promise<void> {
-  if (!isSupabaseConfigured()) return;
-  const sb = requireClient();
-  const { error } = await sb
-    .from("staff")
-    .update({
-      name: member.name,
-      role: member.role,
-      detail: member.detail,
-      initials: member.initials,
-    })
-    .eq("id", member.id);
-  if (error) throw new Error(error.message);
-}
-
+/** Admin only (RLS returns nothing for other roles). */
 export async function loadAuditEvents(limit = 50): Promise<AuditEvent[]> {
-  if (!isSupabaseConfigured()) return [];
-  const sb = requireClient();
-  const { data, error } = await sb
+  const { data, error } = await client()
     .from("audit_events")
-    .select("id,actor_id,actor_name,action,entity_type,entity_id,patient_id,detail,created_at")
+    .select(
+      "id,actor_id,actor_name,action,entity_type,entity_id,patient_id,detail,created_at",
+    )
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) throw new Error(error.message);
   return (data ?? []).map((row) => mapAudit(row as AuditRow));
 }
 
-/** Update patient demographic / assignment fields (not vitals). */
-export async function persistPatientProfile(args: {
-  patient: Patient;
-}): Promise<void> {
-  if (!isSupabaseConfigured()) return;
-  const sb = requireClient();
-  const p = args.patient;
-  const now = new Date().toISOString();
-
-  // admitted is display text in the app; keep admitted_on if we can parse a date,
-  // otherwise only update the fields we always have.
-  const { error } = await sb
-    .from("patients")
-    .update({
-      name: p.name,
-      age: p.age,
-      room: p.room,
-      diagnosis: p.diagnosis,
-      allergy: p.allergy,
-      status: p.status,
-      doctor_id: p.doctorId,
-      nurse_id: p.nurseId,
-      updated_at: now,
-    })
-    .eq("id", p.id);
-
+/** Admin only. Pending invitations for the caller's hospital. */
+export async function loadInvites(): Promise<HospitalInvite[]> {
+  const { data, error } = await client()
+    .from("hospital_invites")
+    .select("id,email,name,role,detail,initials,status,created_at")
+    .eq("status", "pending")
+    .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => mapInvite(row as InviteRow));
 }
 
-export async function persistRecordVitals(args: {
-  patient: Patient;
+// ---------------------------------------------------------------------------
+// Signup / onboarding
+// ---------------------------------------------------------------------------
+
+/** Caller becomes the first admin of a new hospital. Returns the hospital id. */
+export function createHospital(input: {
+  hospitalName: string;
+  adminName: string;
+  wardName?: string;
+}): Promise<string> {
+  return rpc<string>("create_hospital", {
+    p_hospital_name: input.hospitalName,
+    p_admin_name: input.adminName,
+    p_ward_name: input.wardName ?? null,
+  });
+}
+
+/** Joins the hospital that invited the caller's verified email; null if none. */
+export function claimInvite(): Promise<string | null> {
+  return rpc<string | null>("claim_invite");
+}
+
+// ---------------------------------------------------------------------------
+// Vitals and alerts
+// ---------------------------------------------------------------------------
+
+export async function recordVitals(input: {
+  patientId: string;
   vitals: Vitals;
   note?: string;
-  staffId: string;
-  newAlert: Alert | null;
-  newTimeline: TimelineEvent[];
-}): Promise<void> {
-  if (!isSupabaseConfigured()) return;
-  const sb = requireClient();
-  const now = new Date().toISOString();
-
-  const { error: patientError } = await sb
-    .from("patients")
-    .update({
-      oxygen: args.vitals.oxygen,
-      heart_rate: args.vitals.heartRate,
-      bp: args.vitals.bp,
-      temperature: args.vitals.temperature,
-      respiratory: args.vitals.respiratory,
-      status: args.patient.status,
-      updated_at: now,
-    })
-    .eq("id", args.patient.id);
-
-  if (patientError) throw new Error(patientError.message);
-
-  const { error: readingError } = await sb.from("vital_readings").insert({
-    patient_id: args.patient.id,
-    recorded_by: args.staffId,
-    oxygen: args.vitals.oxygen,
-    heart_rate: args.vitals.heartRate,
-    bp: args.vitals.bp,
-    temperature: args.vitals.temperature,
-    respiratory: args.vitals.respiratory,
-    note: args.note ?? null,
-    created_at: now,
-  });
-
-  if (readingError) throw new Error(readingError.message);
-
-  if (args.newAlert) {
-    const { error: alertError } = await sb.from("alerts").insert({
-      id: args.newAlert.id,
-      patient_id: args.newAlert.patientId,
-      severity: args.newAlert.severity,
-      message: args.newAlert.message,
-      status: args.newAlert.status,
-      created_at: now,
-      updated_at: now,
-    });
-    if (alertError) throw new Error(alertError.message);
-  }
-
-  if (args.newTimeline.length) {
-    const { error: timelineError } = await sb.from("timeline_events").insert(
-      args.newTimeline.map((e) => ({
-        id: e.id,
-        patient_id: e.patientId,
-        summary: e.summary,
-        event_type: e.type,
-        created_at: now,
-      })),
-    );
-    if (timelineError) throw new Error(timelineError.message);
-  }
-
-  await sb.from("audit_events").insert({
-    actor_id: args.staffId,
-    action: "record_vitals",
-    entity_type: "patient",
-    entity_id: args.patient.id,
-    patient_id: args.patient.id,
-    detail: {
-      vitals: args.vitals,
-      note: args.note ?? null,
-      alert_id: args.newAlert?.id ?? null,
+}): Promise<{ abnormalCount: number; alertId: string | null }> {
+  const r = await rpc<{ abnormal_count: number; alert_id: string | null }>(
+    "record_vitals",
+    {
+      p_patient_id: input.patientId,
+      p_oxygen: input.vitals.oxygen,
+      p_heart_rate: input.vitals.heartRate,
+      p_bp: input.vitals.bp,
+      p_temperature: input.vitals.temperature,
+      p_respiratory: input.vitals.respiratory,
+      p_note: input.note ?? null,
     },
-  });
+  );
+  return { abnormalCount: r.abnormal_count, alertId: r.alert_id };
 }
 
-export async function persistCompleteTask(args: {
-  task: Task;
-  newTimeline: TimelineEvent;
-  staffId: string;
-  staffName: string;
-}): Promise<void> {
-  if (!isSupabaseConfigured()) return;
-  const sb = requireClient();
-  const now = new Date().toISOString();
-
-  const { error: taskError } = await sb
-    .from("tasks")
-    .update({ status: args.task.status })
-    .eq("id", args.task.id);
-  if (taskError) throw new Error(taskError.message);
-
-  const { error: timelineError } = await sb.from("timeline_events").insert({
-    id: args.newTimeline.id,
-    patient_id: args.newTimeline.patientId,
-    summary: args.newTimeline.summary,
-    event_type: args.newTimeline.type,
-    created_at: now,
-  });
-  if (timelineError) throw new Error(timelineError.message);
-
-  await sb.from("audit_events").insert({
-    actor_id: args.staffId,
-    actor_name: args.staffName,
-    action: "complete_task",
-    entity_type: "task",
-    entity_id: args.task.id,
-    patient_id: args.task.patientId,
-    detail: { title: args.task.title },
-  });
+export async function setAlertStatus(
+  alertId: string,
+  status: Extract<AlertStatus, "acknowledged" | "resolved">,
+): Promise<void> {
+  await rpc("set_alert_status", { p_alert_id: alertId, p_status: status });
 }
 
-export async function persistCreateTask(args: {
-  task: Task;
-  newTimeline: TimelineEvent;
-  staffId: string;
-  staffName: string;
-}): Promise<void> {
-  if (!isSupabaseConfigured()) return;
-  const sb = requireClient();
-  const now = new Date().toISOString();
-  const t = args.task;
+// ---------------------------------------------------------------------------
+// Tasks, medications, notes
+// ---------------------------------------------------------------------------
 
-  const { error: taskError } = await sb.from("tasks").insert({
-    id: t.id,
-    patient_id: t.patientId,
-    title: t.title,
-    due_label: t.due,
-    priority: t.priority,
-    status: t.status,
-    created_at: now,
-  });
-  if (taskError) throw new Error(taskError.message);
-
-  const { error: timelineError } = await sb.from("timeline_events").insert({
-    id: args.newTimeline.id,
-    patient_id: args.newTimeline.patientId,
-    summary: args.newTimeline.summary,
-    event_type: args.newTimeline.type,
-    created_at: now,
-  });
-  if (timelineError) throw new Error(timelineError.message);
-
-  await sb.from("audit_events").insert({
-    actor_id: args.staffId,
-    actor_name: args.staffName,
-    action: "create_task",
-    entity_type: "task",
-    entity_id: t.id,
-    patient_id: t.patientId,
-    detail: { title: t.title, priority: t.priority },
-  });
-}
-
-export async function persistAdministerMedication(args: {
-  medication: Medication;
-  newTimeline: TimelineEvent;
-  staffId: string;
-  staffName: string;
-}): Promise<void> {
-  if (!isSupabaseConfigured()) return;
-  const sb = requireClient();
-  const now = new Date().toISOString();
-
-  const { error: medError } = await sb
-    .from("medications")
-    .update({ status: args.medication.status })
-    .eq("id", args.medication.id);
-  if (medError) throw new Error(medError.message);
-
-  const { error: timelineError } = await sb.from("timeline_events").insert({
-    id: args.newTimeline.id,
-    patient_id: args.newTimeline.patientId,
-    summary: args.newTimeline.summary,
-    event_type: args.newTimeline.type,
-    created_at: now,
-  });
-  if (timelineError) throw new Error(timelineError.message);
-
-  await sb.from("audit_events").insert({
-    actor_id: args.staffId,
-    actor_name: args.staffName,
-    action: "administer_medication",
-    entity_type: "medication",
-    entity_id: args.medication.id,
-    patient_id: args.medication.patientId,
-    detail: { name: args.medication.name, dose: args.medication.dose },
-  });
-}
-
-export async function persistOrderMedication(args: {
-  medication: Medication;
-  newTimeline: TimelineEvent;
-  staffId: string;
-  staffName: string;
-}): Promise<void> {
-  if (!isSupabaseConfigured()) return;
-  const sb = requireClient();
-  const now = new Date().toISOString();
-  const m = args.medication;
-
-  const { error: medError } = await sb.from("medications").insert({
-    id: m.id,
-    patient_id: m.patientId,
-    name: m.name,
-    dose: m.dose,
-    due_label: m.due,
-    status: m.status,
-    ordered_by: args.staffId,
-    created_at: now,
-  });
-  if (medError) throw new Error(medError.message);
-
-  const { error: timelineError } = await sb.from("timeline_events").insert({
-    id: args.newTimeline.id,
-    patient_id: args.newTimeline.patientId,
-    summary: args.newTimeline.summary,
-    event_type: args.newTimeline.type,
-    created_at: now,
-  });
-  if (timelineError) throw new Error(timelineError.message);
-
-  await sb.from("audit_events").insert({
-    actor_id: args.staffId,
-    actor_name: args.staffName,
-    action: "order_medication",
-    entity_type: "medication",
-    entity_id: m.id,
-    patient_id: m.patientId,
-    detail: { name: m.name, dose: m.dose, due: m.due },
-  });
-}
-
-export async function persistAddNote(args: {
-  note: Note;
-  newTimeline: TimelineEvent;
-  staffId: string;
-  staffName: string;
-}): Promise<void> {
-  if (!isSupabaseConfigured()) return;
-  const sb = requireClient();
-  const now = new Date().toISOString();
-  const n = args.note;
-
-  const { error: noteError } = await sb.from("notes").insert({
-    id: n.id,
-    patient_id: n.patientId,
-    author_name: n.author,
-    author_id: args.staffId,
-    note_type: n.type,
-    content: n.content,
-    created_at: now,
-  });
-  if (noteError) throw new Error(noteError.message);
-
-  const { error: timelineError } = await sb.from("timeline_events").insert({
-    id: args.newTimeline.id,
-    patient_id: args.newTimeline.patientId,
-    summary: args.newTimeline.summary,
-    event_type: args.newTimeline.type,
-    created_at: now,
-  });
-  if (timelineError) throw new Error(timelineError.message);
-
-  await sb.from("audit_events").insert({
-    actor_id: args.staffId,
-    actor_name: args.staffName,
-    action: "add_note",
-    entity_type: "note",
-    entity_id: n.id,
-    patient_id: n.patientId,
-    detail: { type: n.type },
-  });
-}
-
-export async function persistAlertStatus(args: {
-  alert: Alert;
+export function createTask(input: {
   patientId: string;
-  patientStatus: PatientStatus;
-  newTimeline: TimelineEvent;
-  staffId: string;
-  staffName: string;
-}): Promise<void> {
-  if (!isSupabaseConfigured()) return;
-  const sb = requireClient();
-  const now = new Date().toISOString();
-
-  const { error: alertError } = await sb
-    .from("alerts")
-    .update({ status: args.alert.status, updated_at: now })
-    .eq("id", args.alert.id);
-
-  if (alertError) throw new Error(alertError.message);
-
-  const { error: patientError } = await sb
-    .from("patients")
-    .update({ status: args.patientStatus, updated_at: now })
-    .eq("id", args.patientId);
-
-  if (patientError) throw new Error(patientError.message);
-
-  const { error: timelineError } = await sb.from("timeline_events").insert({
-    id: args.newTimeline.id,
-    patient_id: args.newTimeline.patientId,
-    summary: args.newTimeline.summary,
-    event_type: args.newTimeline.type,
-    created_at: now,
-  });
-
-  if (timelineError) throw new Error(timelineError.message);
-
-  await sb.from("audit_events").insert({
-    actor_id: args.staffId,
-    actor_name: args.staffName,
-    action: `alert_${args.alert.status}`,
-    entity_type: "alert",
-    entity_id: args.alert.id,
-    patient_id: args.patientId,
-    detail: { message: args.alert.message },
+  title: string;
+  due: string;
+  priority: TaskPriority;
+}): Promise<string> {
+  return rpc<string>("create_task", {
+    p_patient_id: input.patientId,
+    p_title: input.title,
+    p_due_label: input.due || null,
+    p_priority: input.priority,
   });
 }
 
-/**
- * Reset demo tables back to the fictional seed scenario.
- * Deletes runtime rows then re-upserts the known seed IDs.
- */
-export async function resetWardToSeed(): Promise<WardBundle> {
-  if (!isSupabaseConfigured()) {
-    return {
-      staff: structuredClone(STAFF),
-      data: structuredClone(SEED),
-      source: "seed",
-    };
-  }
+export async function completeTask(taskId: string): Promise<void> {
+  await rpc("complete_task", { p_task_id: taskId });
+}
 
-  const sb = requireClient();
+export function orderMedication(input: {
+  patientId: string;
+  name: string;
+  dose: string;
+  due: string;
+}): Promise<string> {
+  return rpc<string>("order_medication", {
+    p_patient_id: input.patientId,
+    p_name: input.name,
+    p_dose: input.dose,
+    p_due_label: input.due || null,
+  });
+}
 
-  // Clear mutable clinical tables (order respects FKs via patient cascade mostly).
-  for (const table of [
-    "audit_events",
-    "vital_readings",
-    "timeline_events",
-    "notes",
-    "medications",
-    "tasks",
-    "alerts",
-  ] as const) {
-    // PostgREST requires a filter; match all real ids.
-    const { error } = await sb.from(table).delete().neq("id", "__none__");
-    if (error) throw new Error(`${table}: ${error.message}`);
-  }
+export async function administerMedication(medicationId: string): Promise<void> {
+  await rpc("administer_medication", { p_medication_id: medicationId });
+}
 
-  // Restore patient snapshot from seed.
-  for (const p of SEED.patients) {
-    const admittedMatch = p.admitted.match(/([A-Za-z]+) (\d+), (\d+)/);
-    let admittedOn = "2026-06-04";
-    if (admittedMatch) {
-      const months: Record<string, string> = {
-        January: "01",
-        February: "02",
-        March: "03",
-        April: "04",
-        May: "05",
-        June: "06",
-        July: "07",
-        August: "08",
-        September: "09",
-        October: "10",
-        November: "11",
-        December: "12",
-      };
-      const m = months[admittedMatch[1]] ?? "06";
-      admittedOn = `${admittedMatch[3]}-${m}-${admittedMatch[2].padStart(2, "0")}`;
-    }
+export function addNote(input: {
+  patientId: string;
+  type: string;
+  content: string;
+}): Promise<string> {
+  return rpc<string>("add_note", {
+    p_patient_id: input.patientId,
+    p_content: input.content,
+    p_note_type: input.type || null,
+  });
+}
 
-    const { error } = await sb.from("patients").upsert({
-      id: p.id,
-      name: p.name,
-      age: p.age,
-      room: p.room,
-      diagnosis: p.diagnosis,
-      allergy: p.allergy,
-      status: p.status,
-      doctor_id: p.doctorId,
-      nurse_id: p.nurseId,
-      admitted_on: admittedOn,
-      oxygen: p.vitals.oxygen,
-      heart_rate: p.vitals.heartRate,
-      bp: p.vitals.bp,
-      temperature: p.vitals.temperature,
-      respiratory: p.vitals.respiratory,
-      updated_at: new Date().toISOString(),
-    });
-    if (error) throw new Error(`patients ${p.id}: ${error.message}`);
-  }
+// ---------------------------------------------------------------------------
+// Patients
+// ---------------------------------------------------------------------------
 
-  // Ensure staff exist.
-  for (const s of STAFF) {
-    const { error } = await sb.from("staff").upsert({
-      id: s.id,
-      name: s.name,
-      role: s.role,
-      detail: s.detail,
-      initials: s.initials,
-    });
-    if (error) throw new Error(`staff ${s.id}: ${error.message}`);
-  }
+export function admitPatient(input: {
+  name: string;
+  age: number;
+  room: string;
+  diagnosis: string;
+  allergy?: string;
+  wardId?: string | null;
+  doctorId?: string | null;
+  nurseId?: string | null;
+}): Promise<string> {
+  return rpc<string>("admit_patient", {
+    p_name: input.name,
+    p_age: input.age,
+    p_room: input.room,
+    p_diagnosis: input.diagnosis,
+    p_allergy: input.allergy ?? null,
+    p_ward_id: input.wardId || null,
+    p_doctor_id: input.doctorId || null,
+    p_nurse_id: input.nurseId || null,
+  });
+}
 
-  const { error: alertsError } = await sb.from("alerts").insert(
-    SEED.alerts.map((a) => ({
-      id: a.id,
-      patient_id: a.patientId,
-      severity: a.severity,
-      message: a.message,
-      status: a.status,
-    })),
-  );
-  if (alertsError) throw new Error(alertsError.message);
+export async function updatePatient(input: {
+  patientId: string;
+  name: string;
+  age: number;
+  room: string;
+  diagnosis: string;
+  allergy: string;
+  wardId: string | null;
+  doctorId: string;
+  nurseId: string;
+}): Promise<void> {
+  await rpc("update_patient", {
+    p_patient_id: input.patientId,
+    p_name: input.name,
+    p_age: input.age,
+    p_room: input.room,
+    p_diagnosis: input.diagnosis,
+    p_allergy: input.allergy,
+    p_ward_id: input.wardId || null,
+    p_doctor_id: input.doctorId || null,
+    p_nurse_id: input.nurseId || null,
+  });
+}
 
-  const { error: tasksError } = await sb.from("tasks").insert(
-    SEED.tasks.map((t) => ({
-      id: t.id,
-      patient_id: t.patientId,
-      title: t.title,
-      due_label: t.due,
-      priority: t.priority,
-      status: t.status,
-    })),
-  );
-  if (tasksError) throw new Error(tasksError.message);
+// ---------------------------------------------------------------------------
+// Staff, invites, hospital settings, wards
+// ---------------------------------------------------------------------------
 
-  const { error: medsError } = await sb.from("medications").insert(
-    SEED.medications.map((m) => ({
-      id: m.id,
-      patient_id: m.patientId,
-      name: m.name,
-      dose: m.dose,
-      due_label: m.due,
-      status: m.status,
-    })),
-  );
-  if (medsError) throw new Error(medsError.message);
+export async function updateMyProfile(input: {
+  name: string;
+  detail: string;
+  initials: string;
+}): Promise<void> {
+  await rpc("update_my_profile", {
+    p_name: input.name,
+    p_detail: input.detail,
+    p_initials: input.initials,
+  });
+}
 
-  const { error: notesError } = await sb.from("notes").insert(
-    SEED.notes.map((n) => {
-      const author = STAFF.find((s) => s.name === n.author);
-      return {
-        id: n.id,
-        patient_id: n.patientId,
-        author_name: n.author,
-        author_id: author?.id ?? null,
-        note_type: n.type,
-        content: n.content,
-      };
-    }),
-  );
-  if (notesError) throw new Error(notesError.message);
+export function inviteStaff(input: {
+  email: string;
+  name: string;
+  role: Role;
+  detail: string;
+  initials: string;
+}): Promise<string> {
+  return rpc<string>("invite_staff", {
+    p_email: input.email,
+    p_name: input.name,
+    p_role: input.role,
+    p_detail: input.detail,
+    p_initials: input.initials || null,
+  });
+}
 
-  const { error: timelineError } = await sb.from("timeline_events").insert(
-    SEED.timeline.map((e) => ({
-      id: e.id,
-      patient_id: e.patientId,
-      summary: e.summary,
-      event_type: e.type,
-    })),
-  );
-  if (timelineError) throw new Error(timelineError.message);
+export async function revokeInvite(inviteId: string): Promise<void> {
+  await rpc("revoke_invite", { p_invite_id: inviteId });
+}
 
-  return loadWardBundle();
+export async function updateStaff(input: {
+  id: string;
+  name: string;
+  role: Role;
+  detail: string;
+  initials: string;
+}): Promise<void> {
+  await rpc("update_staff", {
+    p_staff_id: input.id,
+    p_name: input.name,
+    p_role: input.role,
+    p_detail: input.detail,
+    p_initials: input.initials,
+  });
+}
+
+export async function setStaffActive(staffId: string, active: boolean): Promise<void> {
+  await rpc("set_staff_active", { p_staff_id: staffId, p_active: active });
+}
+
+/** Rename the hospital and/or merge settings (timezone, alertThresholds). */
+export async function updateHospitalSettings(input: {
+  name?: string;
+  settings?: HospitalSettings;
+}): Promise<void> {
+  await rpc("update_hospital_settings", {
+    p_name: input.name ?? null,
+    p_settings: input.settings ?? null,
+  });
+}
+
+export function createWard(name: string): Promise<string> {
+  return rpc<string>("create_ward", { p_name: name });
+}
+
+export async function renameWard(wardId: string, name: string): Promise<void> {
+  await rpc("rename_ward", { p_ward_id: wardId, p_name: name });
 }

@@ -11,7 +11,7 @@ import { Badge } from "@/components/Badge";
 import { patientHref } from "@/lib/routes";
 
 export default function DashboardPage() {
-  const { staff, data } = useSession();
+  const { staff, data, hospital } = useSession();
 
   const summary = wardSummary(data);
   const attention = bySeverity(data.patients.filter((p) => p.status !== "stable"));
@@ -49,7 +49,7 @@ export default function DashboardPage() {
     <>
       <div className="page-head">
         <div>
-          <p className="eyebrow">Medical Ward A · Day Shift</p>
+          <p className="eyebrow">{hospital?.name ?? "Ward"}</p>
           <h1>Good morning, {firstName}</h1>
           <p className="muted">Here is what needs attention across the ward.</p>
         </div>

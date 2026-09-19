@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "@/lib/session";
 
 export function LoginForm() {
-  const { signIn, authMode, authStatus } = useSession();
+  const { signIn, authStatus } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next") || "/";
@@ -15,7 +15,7 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const offline = authMode === "seed";
+  const offline = authStatus === "unconfigured";
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -44,16 +44,15 @@ export function LoginForm() {
         <h1>Sign in</h1>
         <p className="muted login-sub">
           {offline
-            ? "Authentication is not configured for this environment."
+            ? "This environment is not connected to a database."
             : "Enter your credentials to access the ward portal."}
         </p>
 
         {offline ? (
           <div className="clinical-callout" style={{ marginBottom: 18 }}>
-            This environment is running without Supabase. Contact your
-            administrator or configure{" "}
+            Supabase is not configured. Set{" "}
             <code>NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
-            <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>.
+            <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> and rebuild.
           </div>
         ) : (
           <form className="login-form" onSubmit={(e) => void handleSubmit(e)}>
@@ -94,10 +93,10 @@ export function LoginForm() {
               </div>
             ) : null}
 
-            {authStatus === "unlinked" ? (
+            {authStatus === "no_hospital" ? (
               <div className="login-error" role="alert">
-                Your account is signed in but is not linked to a care-team
-                profile. Contact your ward administrator.
+                Your account is not linked to a hospital. Ask your hospital
+                admin to invite this email address.
               </div>
             ) : null}
 
@@ -112,8 +111,8 @@ export function LoginForm() {
         )}
 
         <p className="muted login-foot">
-          Authorized care-team use only · Do not enter real patient data in demo
-          environments
+          Authorized care-team use only · Do not enter real patient data until
+          your hospital has completed onboarding
         </p>
       </div>
     </div>

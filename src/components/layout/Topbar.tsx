@@ -2,20 +2,14 @@
 
 import Link from "next/link";
 import { useSession } from "@/lib/session";
-import { RoleSwitcher } from "@/components/RoleSwitcher";
 import { AuthUserMenu } from "@/components/AuthUserMenu";
 import { PatientSearch } from "@/components/layout/PatientSearch";
-import { isDemoResetEnabled } from "@/lib/demo";
 
 /**
- * Top bar: mobile menu, live patient search, data actions, and identity.
+ * Top bar: mobile menu, live patient search, refresh, and identity.
  */
 export function Topbar({ onMenu }: { onMenu: () => void }) {
-  const { staff, resetDemo, reload, refreshing, dataSource, authMode } =
-    useSession();
-
-  const canReset =
-    authMode === "seed" || (staff.role === "admin" && isDemoResetEnabled());
+  const { staff, reload, refreshing } = useSession();
 
   return (
     <header className="topbar">
@@ -24,38 +18,16 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
       </button>
       <PatientSearch />
       <div className="top-spacer" />
-      {dataSource === "supabase" ? (
-        <button
-          type="button"
-          className="btn"
-          onClick={() => void reload()}
-          disabled={refreshing}
-          title="Reload from Supabase"
-        >
-          {refreshing ? "Refreshing…" : "Refresh"}
-        </button>
-      ) : null}
-      {canReset ? (
-        <button
-          type="button"
-          className="btn"
-          onClick={() => void resetDemo()}
-          disabled={refreshing}
-          title="Restore seed demo data"
-        >
-          Reset demo
-        </button>
-      ) : null}
-      {authMode === "auth" ? (
-        <AuthUserMenu />
-      ) : (
-        <>
-          <RoleSwitcher />
-          <Link href="/profile" className="btn">
-            Profile
-          </Link>
-        </>
-      )}
+      <button
+        type="button"
+        className="btn"
+        onClick={() => void reload()}
+        disabled={refreshing}
+        title="Reload from the server"
+      >
+        {refreshing ? "Refreshing…" : "Refresh"}
+      </button>
+      <AuthUserMenu />
       <Link
         href="/profile"
         className="avatar avatar-link"

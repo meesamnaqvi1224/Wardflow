@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import type { Patient, PatientStatus, StaffMember } from "@/lib/types";
-
-const STATUSES: PatientStatus[] = ["urgent", "warning", "stable"];
+import type { Patient, StaffMember } from "@/lib/types";
 
 /**
  * Side drawer to edit patient profile fields (demographics + care team).
@@ -26,21 +24,24 @@ export function EditPatientDrawer({
     room: string;
     diagnosis: string;
     allergy: string;
-    status: PatientStatus;
     doctorId: string;
     nurseId: string;
   }) => Promise<void> | void;
 }) {
   const titleId = useId();
-  const doctors = staffList.filter((s) => s.role === "doctor");
-  const nurses = staffList.filter((s) => s.role === "nurse");
+  // Only active staff can be assigned; a patient's current assignee is kept
+  // selectable even if they were since deactivated, so saving doesn't silently
+  // reassign the patient.
+  const assignable = (role: StaffMember["role"], current: string) =>
+    staffList.filter((s) => s.role === role && (s.active || s.id === current));
+  const doctors = assignable("doctor", patient.doctorId);
+  const nurses = assignable("nurse", patient.nurseId);
 
   const [name, setName] = useState(patient.name);
   const [age, setAge] = useState(String(patient.age));
   const [room, setRoom] = useState(patient.room);
   const [diagnosis, setDiagnosis] = useState(patient.diagnosis);
   const [allergy, setAllergy] = useState(patient.allergy);
-  const [status, setStatus] = useState<PatientStatus>(patient.status);
   const [doctorId, setDoctorId] = useState(patient.doctorId);
   const [nurseId, setNurseId] = useState(patient.nurseId);
   const [saving, setSaving] = useState(false);
@@ -70,7 +71,6 @@ export function EditPatientDrawer({
         room: room.trim(),
         diagnosis: diagnosis.trim(),
         allergy: allergy.trim() || "None recorded",
-        status,
         doctorId,
         nurseId,
       });
@@ -153,17 +153,12 @@ export function EditPatientDrawer({
             </div>
             <div className="field">
               <label htmlFor="edit-status">Status</label>
-              <select
+              <input
                 id="edit-status"
-                value={status}
-                onChange={(e) => setStatus(e.target.value as PatientStatus)}
-              >
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
+                value={`${patient.status} (from open alerts)`}
+                readOnly
+                disabled
+              />
             </div>
             <div className="field">
               <label htmlFor="edit-admitted">Admitted</label>
@@ -177,6 +172,7 @@ export function EditPatientDrawer({
                 onChange={(e) => setDoctorId(e.target.value)}
                 disabled={!canEditAssignments}
               >
+                <option value="">Unassigned</option>
                 {doctors.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
@@ -192,6 +188,7 @@ export function EditPatientDrawer({
                 onChange={(e) => setNurseId(e.target.value)}
                 disabled={!canEditAssignments}
               >
+                <option value="">Unassigned</option>
                 {nurses.map((n) => (
                   <option key={n.id} value={n.id}>
                     {n.name}

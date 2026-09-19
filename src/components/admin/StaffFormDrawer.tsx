@@ -16,6 +16,7 @@ export function StaffFormDrawer({
   onClose: () => void;
   onSubmit: (input: {
     id?: string;
+    email?: string;
     name: string;
     role: Role;
     detail: string;
@@ -23,6 +24,7 @@ export function StaffFormDrawer({
   }) => Promise<{ error: string | null }>;
 }) {
   const titleId = useId();
+  const [email, setEmail] = useState("");
   const [name, setName] = useState(initial?.name ?? "");
   const [role, setRole] = useState<Role>(initial?.role ?? "nurse");
   const [detail, setDetail] = useState(initial?.detail ?? "");
@@ -45,6 +47,7 @@ export function StaffFormDrawer({
     try {
       const result = await onSubmit({
         id: initial?.id,
+        email: mode === "create" ? email : undefined,
         name,
         role,
         detail,
@@ -73,10 +76,12 @@ export function StaffFormDrawer({
           <div>
             <p className="eyebrow">Staff</p>
             <h2 id={titleId}>
-              {mode === "create" ? "Add staff member" : `Edit · ${initial?.name}`}
+              {mode === "create" ? "Invite staff member" : `Edit · ${initial?.name}`}
             </h2>
             <p className="muted">
-              Auth login is linked separately in Supabase (staff.auth_user_id).
+              {mode === "create"
+                ? "They join your hospital when they sign up with this email and verify it."
+                : "Changes apply immediately."}
             </p>
           </div>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
@@ -86,6 +91,19 @@ export function StaffFormDrawer({
 
         <form onSubmit={(e) => void handleSubmit(e)}>
           <div className="form-grid">
+            {mode === "create" ? (
+              <div className="field full">
+                <label htmlFor="staff-email">Email</label>
+                <input
+                  id="staff-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@hospital.org"
+                  required
+                />
+              </div>
+            ) : null}
             <div className="field full">
               <label htmlFor="staff-name">Display name</label>
               <input
@@ -141,7 +159,7 @@ export function StaffFormDrawer({
               Cancel
             </button>
             <button type="submit" className="btn primary" disabled={saving}>
-              {saving ? "Saving…" : mode === "create" ? "Add staff" : "Save changes"}
+              {saving ? "Saving…" : mode === "create" ? "Send invitation" : "Save changes"}
             </button>
           </div>
         </form>

@@ -20,12 +20,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     clearToast,
     loadState,
     loadError,
-    dataSource,
     reload,
     refreshing,
-    authMode,
     authStatus,
     authError,
+    signOut,
   } = useSession();
 
   // Close mobile nav on route change
@@ -36,10 +35,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Session expired / signed out while browsing → login
   useEffect(() => {
     if (pathname.startsWith("/login")) return;
-    if (authMode === "auth" && authStatus === "signed_out") {
+    if (authStatus === "signed_out") {
       router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     }
-  }, [authMode, authStatus, pathname, router]);
+  }, [authStatus, pathname, router]);
 
   if (pathname.startsWith("/login")) {
     return (
@@ -50,11 +49,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const blockingAuth =
-    authMode === "auth" &&
-    (authStatus === "loading" || authStatus === "signed_out");
-
-  const unlinked = authMode === "auth" && authStatus === "unlinked";
+  const blockingAuth = authStatus === "loading" || authStatus === "signed_out";
+  const unconfigured = authStatus === "unconfigured";
+  const noHospital = authStatus === "no_hospital";
 
   return (
     <>
@@ -77,20 +74,33 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <div className="spinner" aria-hidden="true" />
                 Checking session…
               </div>
-            ) : unlinked ? (
+            ) : unconfigured ? (
               <div className="clinical-callout">
-                <strong>Account not linked to staff.</strong>
+                <strong>Supabase is not configured.</strong>
+                <p className="muted" style={{ margin: "8px 0 0" }}>
+                  Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY,
+                  then rebuild.
+                </p>
+              </div>
+            ) : noHospital ? (
+              <div className="clinical-callout">
+                <strong>Your account is not linked to a hospital.</strong>
                 <p className="muted" style={{ margin: "8px 0 0" }}>
                   {authError ??
-                    "Your login is not linked to a staff profile. Contact a ward admin to set staff.auth_user_id."}
+                    "Ask your hospital admin to invite this email address, or create a new hospital."}
                 </p>
                 <button
                   type="button"
                   className="btn"
                   style={{ marginTop: 12 }}
-                  onClick={() => router.replace("/login")}
+                  onClick={() => {
+                    void (async () => {
+                      await signOut();
+                      router.replace("/login");
+                    })();
+                  }}
                 >
-                  Back to sign in
+                  Sign out
                 </button>
               </div>
             ) : loadState === "loading" ? (
@@ -98,21 +108,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <div className="spinner" aria-hidden="true" />
                 Loading ward data…
               </div>
+            ) : loadState === "error" ? (
+              <div className="clinical-callout">
+                <strong>Could not load ward data.</strong>
+                <p className="muted" style={{ margin: "8px 0 0" }}>{loadError}</p>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ marginTop: 12 }}
+                  onClick={() => void reload()}
+                  disabled={refreshing}
+                >
+                  {refreshing ? "Retrying…" : "Retry"}
+                </button>
+              </div>
             ) : (
               <>
-                {loadError && dataSource === "seed" ? (
-                  <div className="clinical-callout" style={{ marginBottom: 18 }}>
-                    Could not load Supabase ({loadError}). Showing local demo data.{" "}
-                    <button
-                      type="button"
-                      className="mini-btn"
-                      onClick={() => void reload()}
-                      disabled={refreshing}
-                    >
-                      {refreshing ? "Retrying…" : "Retry"}
-                    </button>
-                  </div>
-                ) : null}
                 {children}
               </>
             )}

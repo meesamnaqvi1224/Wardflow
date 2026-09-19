@@ -5,14 +5,14 @@ import { assignedPatients, bySeverity } from "@/lib/domain";
 import { PatientTable } from "@/components/patient/PatientTable";
 
 export default function MyPatientsPage() {
-  const { staff, data } = useSession();
+  const { staff, data, hospital } = useSession();
   const patients = bySeverity(assignedPatients(data.patients, staff));
 
   return (
     <>
       <div className="page-head">
         <div>
-          <p className="eyebrow">Medical Ward A · Day Shift</p>
+          <p className="eyebrow">{hospital?.name ?? "Ward"}</p>
           <h1>My patients</h1>
           <p className="muted">
             {staff.role === "admin"

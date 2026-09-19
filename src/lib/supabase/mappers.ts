@@ -3,6 +3,9 @@ import type {
   AlertSeverity,
   AlertStatus,
   AuditEvent,
+  Hospital,
+  HospitalInvite,
+  HospitalSettings,
   Medication,
   MedicationStatus,
   Note,
@@ -15,6 +18,7 @@ import type {
   TaskStatus,
   TimelineEvent,
   TimelineType,
+  Ward,
   WardData,
 } from "@/lib/types";
 
@@ -27,6 +31,32 @@ export interface StaffRow {
   detail: string;
   initials: string;
   auth_user_id?: string | null;
+  active: boolean;
+}
+
+export interface HospitalRow {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  status: "active" | "paused";
+  settings: HospitalSettings | null;
+}
+
+export interface WardRow {
+  id: string;
+  name: string;
+}
+
+export interface InviteRow {
+  id: string;
+  email: string;
+  name: string;
+  role: Role;
+  detail: string;
+  initials: string;
+  status: "pending" | "claimed" | "revoked";
+  created_at: string;
 }
 
 export interface AuditRow {
@@ -43,6 +73,7 @@ export interface AuditRow {
 
 export interface PatientRow {
   id: string;
+  ward_id: string | null;
   name: string;
   age: number;
   room: string;
@@ -135,6 +166,35 @@ export function mapStaff(row: StaffRow): StaffMember {
     detail: row.detail ?? "",
     initials: row.initials,
     authUserId: row.auth_user_id ?? null,
+    active: row.active,
+  };
+}
+
+export function mapHospital(row: HospitalRow): Hospital {
+  return {
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    plan: row.plan,
+    status: row.status,
+    settings: row.settings ?? {},
+  };
+}
+
+export function mapWard(row: WardRow): Ward {
+  return { id: row.id, name: row.name };
+}
+
+export function mapInvite(row: InviteRow): HospitalInvite {
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    role: row.role,
+    detail: row.detail ?? "",
+    initials: row.initials,
+    status: row.status,
+    at: formatWhen(row.created_at),
   };
 }
 
@@ -155,6 +215,7 @@ export function mapAudit(row: AuditRow): AuditEvent {
 export function mapPatient(row: PatientRow): Patient {
   return {
     id: row.id,
+    wardId: row.ward_id ?? null,
     name: row.name,
     age: row.age,
     room: row.room,

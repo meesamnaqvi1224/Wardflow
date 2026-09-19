@@ -4,9 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "@/lib/session";
-import { isDemoResetEnabled } from "@/lib/demo";
 import { patientHref } from "@/lib/routes";
-import type { AuditEvent, Patient, PatientStatus, Role, StaffMember } from "@/lib/types";
+import type {
+  AuditEvent,
+  HospitalInvite,
+  Patient,
+  Role,
+  StaffMember,
+} from "@/lib/types";
 import { Badge } from "@/components/Badge";
 import { StaffFormDrawer } from "@/components/admin/StaffFormDrawer";
 
@@ -15,28 +20,34 @@ export default function AdministrationPage() {
     staff,
     allStaff,
     data,
-    authMode,
-    authStatus,
+    hospital,
     updatePatientProfile,
-    createStaffMember,
+    inviteStaff,
+    revokeInvite,
     updateStaffMember,
+    setStaffActive,
+    fetchInvites,
     fetchAuditLog,
-    resetDemo,
-    refreshing,
   } = useSession();
   const router = useRouter();
   const allowed = staff.role === "admin";
   const [savingId, setSavingId] = useState<string | null>(null);
   const [staffDrawer, setStaffDrawer] = useState<"create" | StaffMember | null>(null);
+  const [invites, setInvites] = useState<HospitalInvite[]>([]);
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const [audit, setAudit] = useState<AuditEvent[]>([]);
   const [auditError, setAuditError] = useState<string | null>(null);
   const [auditLoading, setAuditLoading] = useState(false);
 
   useEffect(() => {
-    if (authMode === "auth" && authStatus === "signed_in" && !allowed) {
-      router.replace("/");
-    }
-  }, [authMode, authStatus, allowed, router]);
+    if (!allowed) router.replace("/");
+  }, [allowed, router]);
+
+  const loadInvites = useCallback(async () => {
+    const result = await fetchInvites();
+    setInvites(result.invites);
+    setInviteError(result.error);
+  }, [fetchInvites]);
 
   const loadAudit = useCallback(async () => {
     setAuditLoading(true);
@@ -47,15 +58,18 @@ export default function AdministrationPage() {
   }, [fetchAuditLog]);
 
   useEffect(() => {
-    if (allowed) void loadAudit();
-  }, [allowed, loadAudit]);
+    if (allowed) {
+      void loadAudit();
+      void loadInvites();
+    }
+  }, [allowed, loadAudit, loadInvites]);
 
   const doctors = useMemo(
-    () => allStaff.filter((s) => s.role === "doctor"),
+    () => allStaff.filter((s) => s.role === "doctor" && s.active),
     [allStaff],
   );
   const nurses = useMemo(
-    () => allStaff.filter((s) => s.role === "nurse"),
+    () => allStaff.filter((s) => s.role === "nurse" && s.active),
     [allStaff],
   );
 
@@ -84,7 +98,6 @@ export default function AdministrationPage() {
         room: patient.room,
         diagnosis: patient.diagnosis,
         allergy: patient.allergy,
-        status: patient.status as PatientStatus,
         doctorId: field === "doctorId" ? value : patient.doctorId,
         nurseId: field === "nurseId" ? value : patient.nurseId,
       });
@@ -108,7 +121,8 @@ export default function AdministrationPage() {
           <p className="eyebrow">Manage</p>
           <h1>Administration</h1>
           <p className="muted">
-            Staff directory, care-team assignments, and activity audit trail.
+            {hospital ? `${hospital.name} · ` : null}Staff directory, invitations,
+            care-team assignments, and activity audit trail.
           </p>
         </div>
         <div className="actions">
@@ -117,18 +131,8 @@ export default function AdministrationPage() {
             className="btn primary"
             onClick={() => setStaffDrawer("create")}
           >
-            Add staff
+            Invite staff
           </button>
-          {authMode === "seed" || isDemoResetEnabled() ? (
-            <button
-              type="button"
-              className="btn"
-              disabled={refreshing}
-              onClick={() => void resetDemo()}
-            >
-              {refreshing ? "Resetting…" : "Reset demo data"}
-            </button>
-          ) : null}
         </div>
       </div>
 
@@ -142,7 +146,7 @@ export default function AdministrationPage() {
             <div className="admin-row admin-head">
               <span>Name</span>
               <span>Role</span>
-              <span>Auth</span>
+              <span>Status</span>
               <span>Assignments</span>
               <span />
             </div>
@@ -156,10 +160,10 @@ export default function AdministrationPage() {
                 </span>
                 <span style={{ textTransform: "capitalize" }}>{s.role}</span>
                 <span>
-                  {s.authUserId ? (
-                    <Badge tone="stable" label="Linked" />
+                  {s.active ? (
+                    <Badge tone="stable" label="Active" />
                   ) : (
-                    <Badge tone="neutral" label="Unlinked" />
+                    <Badge tone="neutral" label="Inactive" />
                   )}
                 </span>
                 <span>
@@ -174,15 +178,66 @@ export default function AdministrationPage() {
                     onClick={() => setStaffDrawer(s)}
                   >
                     Edit
+                  </button>{" "}
+                  <button
+                    type="button"
+                    className="mini-btn"
+                    onClick={() => void setStaffActive(s.id, !s.active)}
+                  >
+                    {s.active ? "Deactivate" : "Reactivate"}
                   </button>
                 </span>
               </div>
             ))}
           </div>
           <p className="muted" style={{ marginTop: 14, fontSize: 13 }}>
-            To link a login: create the user in Supabase Authentication, then set{" "}
-            <code>staff.auth_user_id</code> to that user&apos;s UUID (SQL editor).
+            New staff join by signing up with the email you invite and verifying it.
+            Deactivated staff keep their history but lose access immediately.
           </p>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="section-head">
+          <h2>Pending invitations</h2>
+          <span className="muted">{invites.length} pending</span>
+        </div>
+        <div className="panel panel-pad">
+          {inviteError ? <div className="clinical-callout">{inviteError}</div> : null}
+          {invites.length ? (
+            <div className="admin-table admin-table-staff">
+              <div className="admin-row admin-head">
+                <span>Name</span>
+                <span>Role</span>
+                <span>Email</span>
+                <span>Invited</span>
+                <span />
+              </div>
+              {invites.map((inv) => (
+                <div key={inv.id} className="admin-row">
+                  <span>
+                    <strong>{inv.name}</strong>
+                  </span>
+                  <span style={{ textTransform: "capitalize" }}>{inv.role}</span>
+                  <span className="muted">{inv.email}</span>
+                  <span className="muted">{inv.at}</span>
+                  <span>
+                    <button
+                      type="button"
+                      className="mini-btn"
+                      onClick={() =>
+                        void revokeInvite(inv.id).then(() => loadInvites())
+                      }
+                    >
+                      Revoke
+                    </button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="empty">No pending invitations.</div>
+          )}
         </div>
       </section>
 
@@ -318,12 +373,15 @@ export default function AdministrationPage() {
           onClose={() => setStaffDrawer(null)}
           onSubmit={async (input) => {
             if (staffDrawer === "create") {
-              return createStaffMember({
+              const result = await inviteStaff({
+                email: input.email ?? "",
                 name: input.name,
                 role: input.role as Role,
                 detail: input.detail,
                 initials: input.initials,
               });
+              if (!result.error) void loadInvites();
+              return result;
             }
             return updateStaffMember({
               id: input.id!,

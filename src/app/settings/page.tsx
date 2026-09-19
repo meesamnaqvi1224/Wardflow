@@ -9,7 +9,7 @@ import { useSession } from "@/lib/session";
  * Password change uses Supabase Auth; profile fields live under My profile.
  */
 export default function SettingsPage() {
-  const { staff, user, authMode, changePassword } = useSession();
+  const { staff, user, changePassword } = useSession();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -17,7 +17,7 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
 
-  const authReady = authMode === "auth" && Boolean(user?.email);
+  const authReady = Boolean(user?.email);
 
   async function handlePassword(e: FormEvent) {
     e.preventDefault();

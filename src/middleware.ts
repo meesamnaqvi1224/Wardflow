@@ -7,7 +7,7 @@ export async function middleware(request: NextRequest) {
   const { supabaseResponse, user, configured } = await updateSession(request);
   const { pathname } = request.nextUrl;
 
-  // Offline / unconfigured: no auth gate (seed mode + RoleSwitcher).
+  // Supabase not configured: nothing to gate (the app shows a setup notice).
   if (!configured) {
     return supabaseResponse;
   }
