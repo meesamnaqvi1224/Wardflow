@@ -1,8 +1,30 @@
-# WardFlow v2
+# WardFlow v2 — multi-hospital
 
-Hospital ward portal demo (Next.js + TypeScript). Fictional patient data only.
+Multi-tenant hospital ward portal (Next.js + TypeScript + Supabase). Each
+hospital signs up, manages its own staff and patients, and never sees another
+hospital's data. Fictional / test data only until the checklist in
+[Before real patient data](#before-real-patient-data) is done.
 
 The v1 static prototype lives one folder up and remains deployable on its own.
+This branch (`v2-multi-hospital`) replaces the single-hospital v2 demo that
+lived on `main`; see [Migrating from the old single-hospital setup](#migrating-from-the-old-single-hospital-setup)
+if you have that running already.
+
+## How it works
+
+- **One Supabase project serves every hospital.** Every table carries a
+  `hospital_id`; Row Level Security limits every read to the signed-in user's
+  own hospital, and composite foreign keys stop a row in one hospital from
+  referencing another hospital's patients or staff.
+- **The client never writes tables directly.** Every save (recording vitals,
+  creating a task, inviting staff, …) calls a Postgres function that checks the
+  caller's role, runs in one transaction, and writes its own audit and
+  timeline rows. See `src/lib/supabase/ward.ts` for the full list.
+- **Onboarding is self-serve.** Someone signs up, verifies their email, and
+  either creates a hospital (becoming its first admin) or is invited to an
+  existing one. There is no service-role key or server of our own involved.
+- **Ids are UUIDs.** Two hospitals can never collide on an id, unlike the old
+  single-hospital schema's text ids.
 
 ## Run locally
 
@@ -11,13 +33,157 @@ pnpm install
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000). Without Supabase
+configured, the app shows a "Supabase is not configured" notice instead of the
+ward portal — this version has no offline seed mode.
 
-With Supabase configured you will be redirected to **`/login`**.
+## Set up a Supabase project
+
+Use a **fresh** project or a throwaway scratch project — the SQL in
+`supabase/v2/` creates the schema from nothing and does not migrate the old
+`supabase/schema.sql` / `phase4_*` / `phase5*` files. Don't run it against a
+project that has those applied already.
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. In the SQL editor, run these files **in order**:
+   1. `supabase/v2/01_schema.sql` — tables, enums, indexes, read-only RLS.
+   2. `supabase/v2/02_onboarding.sql` — sign-up, invites, staff/hospital admin
+      functions.
+   3. `supabase/v2/03_workflows.sql` — the clinical functions (vitals, alerts,
+      tasks, medications, notes, patients).
+   4. `supabase/v2/04_isolation_tests.sql` — optional but recommended. Creates
+      two fake hospitals inside a transaction, runs ~40 cross-hospital
+      isolation checks, then rolls everything back. It ends with an
+      intentional error whose message is the report:
+      `TESTS FINISHED — N passed, 0 failed.` If it stops with a different
+      error instead, that's a real problem in 01–03; run `rollback;` once to
+      clear the aborted transaction before retrying.
+3. In **Authentication → Providers → Email**, turn **on** "Confirm email".
+   Invites are matched by verified email address, so this must be on before
+   anyone signs up.
+4. In **Authentication → URL Configuration**, set the **Site URL** and add
+   your app's URL (and `http://localhost:3000` for local dev) to the
+   **Redirect URLs** — the confirmation link sends people back there.
+5. Turn on a CAPTCHA and rate limits for sign-up (**Authentication → Attack
+   Protection**). Any verified user can create a hospital.
+6. Copy `.env.example` → `.env.local` and set:
+
+   ```text
+   NEXT_PUBLIC_SUPABASE_URL=
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=
+   ```
+
+   Use the **anon / publishable** key only, never the service-role key.
+
+7. Supabase's built-in email sender only reaches a handful of addresses an
+   hour and mostly your own project team — it is not enough for real sign-ups.
+   Before inviting real users, connect a proper provider (Resend, Postmark,
+   …) under **Project Settings → Auth → SMTP Settings**.
+
+## Using it
+
+1. Open the app, go to **Sign up**, and create an account with a real email
+   you can verify.
+2. Click the confirmation link, then sign in.
+3. You'll land on **Create your hospital** — enter its name, your name, and a
+   first ward. You become that hospital's first admin.
+4. As admin: **Administration → Invite staff** creates a pending invitation
+   (email + name + role). WardFlow does not send an email for this yet — the
+   drawer shows a sign-up link to send the person yourself. They join your
+   hospital automatically once they sign up with that exact email and verify
+   it.
+5. **Hospital settings** (admin only): rename the hospital, set its time
+   zone, tune the vitals thresholds that raise alerts, and manage wards.
+6. **My patients → Admit patient** (any clinician or admin) adds a patient.
+   Record vitals from the patient page — abnormal values (checked against
+   *this hospital's* thresholds) create an alert and a timeline entry
+   automatically.
+7. Tasks, medications, notes, and the alert lifecycle (acknowledge/resolve)
+   work the same way as the v1 demo; see the in-app pages.
+8. A hospital's administrator can deactivate staff (they keep their history
+   but lose access immediately) and read the audit log.
+
+Role permissions, matching the database functions:
+
+| Action | doctor | nurse | admin |
+|---|---|---|---|
+| Record vitals, acknowledge/resolve alerts, administer medication | ✓ | ✓ | |
+| Order medication | ✓ | | |
+| Create task, add note, admit patient | ✓ | ✓ | ✓ |
+| Change a patient's ward/care team | ✓ | | ✓ |
+| Invite/edit/deactivate staff, hospital settings, audit log | | | ✓ |
+
+## Testing
+
+```bash
+pnpm lint
+pnpm build
+```
+
+`supabase/v2/04_isolation_tests.sql` (above) checks the database layer.
+`scripts/e2e/flow.ts` drives the real app code (`src/lib/supabase/ward.ts`)
+over the live Supabase API — sign-up, hospital creation, invites, every
+clinical workflow, and cross-hospital isolation — using real logins rather
+than simulated ones. Run it against a **scratch** project only:
+
+1. Apply `01`–`03` (not `04`) to a scratch project.
+2. Create confirmed test users for the emails the script expects — see the
+   comment at the top of `scripts/e2e/flow.ts`.
+3. Run:
+
+   ```bash
+   E2E_URL=https://<ref>.supabase.co \
+   E2E_ANON_KEY=<anon key> \
+   E2E_PASSWORD=<the test users' shared password> \
+   pnpm test:e2e
+   ```
+
+Delete the scratch project when you're done; there's no cleanup script.
+
+## Known limitations
+
+- **One hospital per account.** A person who works at two hospitals needs two
+  separate accounts.
+- **Invites are manual.** No email is sent automatically; the admin copies a
+  sign-up link to the invitee. See `src/components/admin/StaffFormDrawer.tsx`.
+- **One open invite per email, across all hospitals.** A second hospital
+  cannot invite an email that already has a pending invite elsewhere.
+- **`output: "export"` (see `next.config.ts`).** The app is built as a static
+  export so the Android shell in `mobile/` can bundle it, which means
+  Next.js middleware does not run — `src/middleware.ts` is effectively dead
+  code, and the redirect to `/login` happens client-side. RLS, not
+  middleware, is what actually protects the data. Patient pages use a
+  `/patient?id=…` query-param route rather than a dynamic segment for the
+  same reason.
+- No billing, plans are not enforced, and there is no platform-level
+  super-admin across hospitals.
+
+## Migrating from the old single-hospital setup
+
+If you have a Supabase project running the old `supabase/schema.sql` /
+`phase4_*` / `phase5*` files (the version that shipped from `main`), this
+branch does **not** migrate it — the id types changed from text to UUID and
+the write path moved from direct table access to database functions. Point
+this branch at a new project instead. There is no automated data migration
+from the old demo data.
+
+## Before real patient data
+
+This is still a demo/MVP. Before it holds anything real:
+
+- Complete the Supabase Auth hardening above (confirm email, redirect URLs,
+  CAPTCHA, real SMTP) and turn on MFA for admin accounts.
+- Get a signed data-processing agreement with Supabase and confirm your
+  hosting region meets your compliance needs (HIPAA, India's DPDP Act, or
+  whatever applies to your hospitals).
+- Remove or restrict the demo banner (`src/components/layout/DemoBanner.tsx`).
+- Have a lawyer review the above — this is not legal advice.
 
 ## Android app (v1 remote shell)
 
-The **`mobile/`** folder is a Capacitor Android project that opens the production web app in a WebView.
+The **`mobile/`** folder is a Capacitor Android project that opens the
+production web app in a WebView. It has not been tested against this
+multi-hospital branch's sign-up/invite flow.
 
 ```bash
 cd mobile
@@ -26,97 +192,10 @@ npx cap sync android
 npx cap open android
 ```
 
-See **[mobile/README.md](./mobile/README.md)** for package id (`meesam.wardflow`), URL config, and Play Store notes.
-
-## What works today
-
-1. **Sign in** as doctor / nurse / admin (Phase 4).
-2. Open **Maya Patel** (or any patient).
-3. **Record vitals** — abnormal values create alerts automatically.
-4. Open **Alerts**, acknowledge / resolve as a doctor or nurse.
-5. **Tasks** — create and complete care tasks (clinicians).
-6. **Medications** — order (doctor) and record administration (nurse/doctor).
-7. **Notes** — add clinical notes on a patient record.
-8. **Administration** (admin) — staff roster, add/edit staff, reassign care team, audit log.
-9. **Settings** — account info + change password (Auth).
-10. **My profile** / patient **Edit profile**.
-11. **Reset demo** (admin only when signed in) restores the seed scenario.
-12. Banner shows signed-in role + **Live Supabase** when connected.
-
-Without Supabase env vars, the app runs in **offline seed mode** with a demo role switcher (no login).
-
-## Supabase setup
-
-1. Create a free project at [supabase.com](https://supabase.com).
-2. In the SQL editor, run:
-   - `supabase/schema.sql` (or `supabase/apply_all.sql`)
-   - `supabase/seed.sql` (if not included in apply_all)
-3. Copy `.env.example` → `.env.local` and set:
-
-```text
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-```
-
-Use the **anon / publishable** key only (not service_role).
-
-4. In Supabase **Authentication → Providers → Email**, turn **off** “Confirm email” for local demo (or confirm users manually).
-5. Create demo users and link them to staff:
-
-```bash
-# DEMO_PASSWORD is required: pick your own unique password (12+ chars)
-DEMO_PASSWORD='<your own password>' node scripts/setup-demo-auth.mjs
-```
-
-6. Apply Phase 4 RLS (authenticated staff only):
-
-   - Run `supabase/phase4_auth.sql` in the SQL editor.
-   - Run `supabase/phase4_profile_edit.sql` so staff can edit their own profile.
-
-7. Optional Phase 5 SaaS foundation:
-
-   - Run `supabase/phase5_multi_hospital.sql` after Phase 4 is working.
-   - This adds `hospitals`, backfills the current demo as one hospital, adds
-     `hospital_id` to ward tables, and scopes RLS so staff only see their own
-     hospital's data.
-   - Then run `supabase/phase5b_tenant_integrity.sql` (composite foreign keys so
-     rows cannot reference another hospital's patients/staff, plus an audit-actor
-     check). It is untested against a live database; run it on a copy first.
-
-Data layer: `src/lib/supabase/ward.ts` (load, record vitals, alert status, reset).
-
-## Demo accounts (Phase 4)
-
-| Email | Staff | Role |
-|-------|--------|------|
-| `doctor@example.com` | Dr. Sarah Khan (`doctor-1`) | doctor |
-| `nurse@example.com` | Nurse Alex Morgan (`nurse-1`) | nurse |
-| `admin@example.com` | Jordan Lee (`admin-1`) | admin |
-
-The password is whatever you pass as `DEMO_PASSWORD` to the setup script; there
-is no default. Never reuse it for real accounts, and remove these demo accounts
-before putting any real data in the project.
-
-If the setup script hits **email rate limit**, wait a few minutes and re-run, or create the three users in **Authentication → Users** and run `supabase/phase4_link_demo_users.sql`.
-
-## Phase 4 notes
-
-- Middleware protects all routes except `/login` when Supabase is configured.
-- Acting staff comes from `staff.auth_user_id` → no role dropdown when signed in.
-- RLS requires a linked staff row; unlinked accounts see an error, not ward data.
-- Admin-only: Administration nav, demo reset.
-
-## Phase 5 notes
-
-- Hospitals are the SaaS tenant boundary.
-- Every staff, patient, alert, task, medication, note, timeline event, vital
-  reading, and audit event receives a `hospital_id`.
-- Supabase RLS uses the signed-in staff profile to resolve
-  `current_hospital_id()`, then filters all ward data to that hospital.
-- The prototype still uses text ids for compatibility. Before real multi-site
-  onboarding, patient/staff creation should use generated UUIDs or
-  hospital-scoped public codes to avoid duplicate ids across hospitals.
+See **[mobile/README.md](./mobile/README.md)** for package id
+(`meesam.wardflow`), URL config, and Play Store notes.
 
 ## Important
 
-This is a demonstration MVP, not production clinical software. Do not enter real patient data.
+This is a demonstration MVP, not production clinical software. Do not enter
+real patient data until the checklist above is done.
